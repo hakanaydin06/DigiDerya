@@ -107,6 +107,11 @@ app.prepare().then(() => {
         if (session && session.focusMode) {
           socket.emit('focus-mode-sync', { enabled: session.focusMode });
         }
+
+        // Sync whiteboard strokes for teacher
+        if (session && session.whiteboardStrokes && session.whiteboardStrokes.length > 0) {
+          socket.emit('whiteboard-sync', session.whiteboardStrokes);
+        }
       } else {
         // Students go to waiting room first
         const waitingStudent = {
@@ -398,11 +403,44 @@ app.prepare().then(() => {
       // Check if was a participant
       const participant = participants.get(socket.id);
       if (participant) {
+        console.log(`👋 Participant disconnected: ${participant.userName} (${socket.id})`);
         socket.to(participant.sessionId).emit('user-left', {
           id: socket.id,
           userName: participant.userName
         });
         participants.delete(socket.id);
+
+        // Also check if was in waiting room (edge case)
+        if (waitingRoom.has(socket.id)) {
+          waitingRoom.delete(socket.id);
+        }
+      }
+    });
+
+    // Request Sync (Recover state)
+    socket.on('request-sync', ({ sessionId }) => {
+      const participant = participants.get(socket.id);
+      if (!participant || participant.sessionId !== sessionId) return;
+
+      console.log(`🔄 Sync requested by ${participant.userName}`);
+
+      // Send current participants
+      const roomParticipants = Array.from(participants.values())
+        .filter(p => p.sessionId === sessionId && p.id !== socket.id && p.isApproved);
+      socket.emit('existing-participants', roomParticipants);
+
+      // Send PDF state
+      const session = sessions.get(sessionId);
+      if (session) {
+        if (session.pdfState) {
+          socket.emit('pdf-sync', session.pdfState);
+        }
+        if (session.focusMode) {
+          socket.emit('focus-mode-sync', { enabled: session.focusMode });
+        }
+        if (session.whiteboardStrokes && session.whiteboardStrokes.length > 0) {
+          socket.emit('whiteboard-sync', session.whiteboardStrokes);
+        }
       }
     });
 

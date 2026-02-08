@@ -103,6 +103,7 @@ export interface ClientToServerEvents {
     'pdf-page-change': (data: { sessionId: string; page: number }) => void;
     'pdf-zoom-change': (data: { sessionId: string; zoom: number }) => void;
     'reconnect-request': (data: { sessionId: string; userName: string; isTeacher: boolean }) => void;
+    'request-sync': (data: { sessionId: string }) => void;
     // Waiting room
     'admit-student': (data: { studentSocketId: string; sessionId: string }) => void;
     'deny-student': (data: { studentSocketId: string; sessionId: string }) => void;

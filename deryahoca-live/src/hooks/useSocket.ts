@@ -110,7 +110,8 @@ export const useSocket = (options: UseSocketOptions) => {
         data: Parameters<ClientToServerEvents[K]>[0]
     ) => {
         if (socketRef.current) {
-            socketRef.current.emit(event, data as never);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            socketRef.current.emit(event, data as any);
         }
     }, []);
 

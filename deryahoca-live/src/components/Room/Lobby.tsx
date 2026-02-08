@@ -117,13 +117,14 @@ export const Lobby: React.FC<LobbyProps> = ({
             onJoin(userName, stream);
         } else {
             const socket = getSocket();
+            setWaitingForApproval(true);
+            setWaitingMessage('Öğretmenin onayı bekleniyor...');
+
             socket.emit('join-room', {
                 sessionId,
                 userName,
                 isTeacher: false,
             });
-            setWaitingForApproval(true);
-            setWaitingMessage('Öğretmenin onayı bekleniyor...');
         }
     };
 

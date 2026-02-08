@@ -85,6 +85,9 @@ export const Room: React.FC<RoomProps> = ({
 
     // Socket handlers
     const handleParticipantJoined = useCallback((participant: Participant) => {
+        const socket = getSocket();
+        if (participant.id === socket.id) return; // Ignore self to prevent ghost participant
+
         // Also remove from waiting list if was there
         setWaitingStudents(prev => prev.filter(s => s.id !== participant.id));
 
@@ -94,8 +97,13 @@ export const Room: React.FC<RoomProps> = ({
         });
     }, []);
 
+
+
     const handleParticipantLeft = useCallback((participantId: string) => {
-        setParticipants(prev => prev.filter(p => p.id !== participantId));
+        setParticipants(prev => {
+            const newParticipants = prev.filter(p => p.id !== participantId);
+            return newParticipants;
+        });
     }, []);
 
     const handleExistingParticipants = useCallback((existingParticipants: Participant[]) => {
@@ -111,6 +119,13 @@ export const Room: React.FC<RoomProps> = ({
         onParticipantLeft: handleParticipantLeft,
         onExistingParticipants: handleExistingParticipants,
     });
+
+    // Request initial sync
+    useEffect(() => {
+        if (isConnected && sessionId) {
+            emit('request-sync', { sessionId });
+        }
+    }, [isConnected, sessionId, emit]);
 
     // Use WebRTC hook
     const { remoteStreams } = useWebRTC({

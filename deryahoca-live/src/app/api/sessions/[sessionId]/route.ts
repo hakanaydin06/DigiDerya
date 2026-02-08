@@ -18,8 +18,10 @@ export async function GET(
         }
 
         // Get participant count
-        const participants = global.participants
-            ? Array.from(global.participants.values()).filter(p => p.sessionId === sessionId)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const globalWithParticipants = global as any;
+        const participants = globalWithParticipants.participants
+            ? Array.from(globalWithParticipants.participants.values()).filter((p: any) => p.sessionId === sessionId)
             : [];
 
         return NextResponse.json({

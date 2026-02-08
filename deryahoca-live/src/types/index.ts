@@ -53,7 +53,8 @@ export type DrawingEvent =
     | { type: 'start' | 'draw' | 'end'; from?: DrawingPoint; point: DrawingPoint; color: string; lineWidth: number; isEraser: boolean; pageIndex: number }
     | { type: 'path'; points: DrawingPoint[]; color: string; lineWidth: number; isEraser: boolean; pageNum: number }
     | { type: 'text'; text: string; x: number; y: number; color: string; pageNum: number }
-    | { type: 'symbol'; symbol: string; x: number; y: number; color: string; pageNum: number };
+    | { type: 'symbol'; symbol: string; x: number; y: number; color: string; pageNum: number }
+    | { type: 'scroll'; percentY: number; percentX: number; pageNum: number };
 
 // Socket Events
 export interface ServerToClientEvents {
@@ -69,6 +70,7 @@ export interface ServerToClientEvents {
     'pdf-sync': (pdfState: PDFState) => void;
     'pdf-page-sync': (data: { page: number }) => void;
     'pdf-zoom-sync': (data: { zoom: number }) => void;
+    'pdf-scroll-sync': (data: { percentY: number; percentX: number }) => void;
     'reconnect-approved': () => void;
     // Waiting room events
     'waiting-for-approval': (data: { message: string }) => void;
@@ -98,6 +100,7 @@ export interface ClientToServerEvents {
     'pdf-change': (data: { sessionId: string; pdfState: PDFState }) => void;
     'pdf-page-change': (data: { sessionId: string; page: number }) => void;
     'pdf-zoom-change': (data: { sessionId: string; zoom: number }) => void;
+    'pdf-scroll-change': (data: { sessionId: string; percentY: number; percentX: number }) => void;
     'reconnect-request': (data: { sessionId: string; userName: string; isTeacher: boolean }) => void;
     'request-sync': (data: { sessionId: string }) => void;
     // Waiting room

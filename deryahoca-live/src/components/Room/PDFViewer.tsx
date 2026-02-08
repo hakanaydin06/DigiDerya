@@ -87,6 +87,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     const [drawingHistory, setDrawingHistory] = useState<Record<number, DrawingAction[]>>({});
     const currentPathRef = useRef<Point[]>([]);
     const activeDrawingPageRef = useRef<number | null>(null);
+    const lastScrollEmit = useRef(0);
+
 
     // Text Input State
     const [textInputVisible, setTextInputVisible] = useState(false);
@@ -225,15 +227,20 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         return canvas?.getContext('2d') || null;
     };
 
-    const drawLine = (ctx: CanvasRenderingContext2D, from: Point, to: Point, color: string, width: number, eraser: boolean) => {
+    const drawLine = (ctx: CanvasRenderingContext2D, from: Point, to: Point, color: string, width: number, eraser: boolean, w: number, h: number) => {
         ctx.beginPath();
-        ctx.moveTo(from.x, from.y);
-        ctx.lineTo(to.x, to.y);
+        const fx = from.x * w;
+        const fy = from.y * h;
+        const tx = to.x * w;
+        const ty = to.y * h;
+
+        ctx.moveTo(fx, fy);
+        ctx.lineTo(tx, ty);
 
         if (eraser) {
             ctx.globalCompositeOperation = 'destination-out';
             ctx.strokeStyle = 'rgba(0,0,0,1)';
-            ctx.lineWidth = width * 5;
+            ctx.lineWidth = width * 5; // Scale with zoom? Maybe later. For now fixed.
         } else {
             ctx.globalCompositeOperation = 'source-over';
             ctx.strokeStyle = color;
@@ -247,22 +254,22 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         ctx.globalCompositeOperation = 'source-over';
     };
 
-    const drawSymbol = (ctx: CanvasRenderingContext2D, symbol: string, x: number, y: number, color: string) => {
+    const drawSymbol = (ctx: CanvasRenderingContext2D, symbol: string, x: number, y: number, color: string, w: number, h: number) => {
         ctx.save();
         ctx.font = '40px sans-serif';
         ctx.fillStyle = color;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(symbol, x, y);
+        ctx.fillText(symbol, x * w, y * h);
         ctx.restore();
     };
 
-    const drawText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string) => {
+    const drawText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, w: number, h: number) => {
         ctx.save();
         ctx.font = '16px Inter, sans-serif';
         ctx.fillStyle = color;
         ctx.textBaseline = 'top';
-        ctx.fillText(text, x, y);
+        ctx.fillText(text, x * w, y * h);
         ctx.restore();
     };
 
@@ -272,15 +279,23 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         // Logic: redrawPage is called on mount or update. 
         // We should clear.
         const canvas = annotationCanvasRefs.current.get(pageNum);
-        if (canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (!canvas) return; // Early return to satisfy TS
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         actions.forEach(action => {
             if (action.type === 'path') {
                 if (action.points.length < 2) return;
                 ctx.beginPath();
-                ctx.moveTo(action.points[0].x, action.points[0].y);
+                // We use helper strictly? No, redrawPage has loop here.
+                // We should refactor to use helper OR update loop logic.
+                // Loop is manual here. I must update it to scale.
+
+                const w = canvas.width;
+                const h = canvas.height;
+
+                ctx.moveTo(action.points[0].x * w, action.points[0].y * h);
                 for (let i = 1; i < action.points.length; i++) {
-                    ctx.lineTo(action.points[i].x, action.points[i].y);
+                    ctx.lineTo(action.points[i].x * w, action.points[i].y * h);
                 }
 
                 if (action.isEraser) {
@@ -296,10 +311,11 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                 ctx.lineJoin = 'round';
                 ctx.stroke();
                 ctx.globalCompositeOperation = 'source-over';
+
             } else if (action.type === 'text') {
-                drawText(ctx, action.text, action.x, action.y, action.color);
+                drawText(ctx, action.text, action.x, action.y, action.color, canvas.width, canvas.height);
             } else if (action.type === 'symbol') {
-                drawSymbol(ctx, action.symbol, action.x, action.y, action.color);
+                drawSymbol(ctx, action.symbol, action.x, action.y, action.color, canvas.width, canvas.height);
             }
         });
     }, [drawingHistory]);
@@ -311,6 +327,18 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         // Handle incoming drawing action
         const handleRemoteDraw = (data: any) => {
             if (!data) return;
+
+            // Scroll Type (Ephemeral)
+            if (data.type === 'scroll') {
+                if (isTeacher) return;
+                if (!pagesContainerRef.current) return;
+                const { percentY, percentX } = data;
+                const { scrollHeight, clientHeight, scrollWidth, clientWidth } = pagesContainerRef.current;
+                const scrollTop = percentY * (scrollHeight - clientHeight);
+                const scrollLeft = percentX * (scrollWidth - clientWidth);
+                pagesContainerRef.current.scrollTo({ top: scrollTop, left: scrollLeft, behavior: 'auto' });
+                return;
+            }
 
             // Check if it's one of our new supported types with pageNum
             if ('pageNum' in data && (data.type === 'path' || data.type === 'text' || data.type === 'symbol')) {
@@ -355,7 +383,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         on('whiteboard-clear', handleRemoteClear);
 
         return () => {
-            off('whiteboard-draw'); // Note: off implementation might need callback reference if simple 'off(event)' is not supported
+            off('whiteboard-draw', handleRemoteDraw); // Note: off implementation might need callback reference if simple 'off(event)' is not supported
             // Assuming 'off' takes just event name based on useSocket hook pattern usually?
             // If useSocket.off requires callback, we need to save references.
             // Let's assume standard emitter pattern?
@@ -404,15 +432,15 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
 
         const x = cssX * scaleX;
         const y = cssY * scaleY;
+        const normX = x / canvas.width;
+        const normY = y / canvas.height;
 
         ctx.save();
-        ctx.font = '16px Inter, sans-serif'; // Match input style (text-base)
-        ctx.fillStyle = currentColor; // Or force 'white'? No, user wants color. Input has text-white but drawing should use tool color?
-        // Wait, input is white-ish. Drawing should probably match currentColor.
-        // User didn't specify color mismatch, just position/layer.
-        // To be safe, I'll use currentColor.
+        ctx.font = '16px Inter, sans-serif';
+        ctx.fillStyle = currentColor;
+
         // Update history
-        const action: DrawingAction = { type: 'text', text: textValue, x, y, color: currentColor };
+        const action: DrawingAction = { type: 'text', text: textValue, x: normX, y: normY, color: currentColor };
         setDrawingHistory(prev => ({
             ...prev,
             [activeTextPage]: [
@@ -428,7 +456,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         });
 
         // Draw immediately
-        drawText(ctx, textValue, x, y, currentColor);
+        drawText(ctx, textValue, normX, normY, currentColor, canvas.width, canvas.height);
         ctx.restore();
 
         setTextInputVisible(false);
@@ -462,10 +490,12 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         const scaleY = canvas.height / rect.height;
         const canvasX = cssX * scaleX;
         const canvasY = cssY * scaleY;
+        const normX = canvasX / canvas.width;
+        const normY = canvasY / canvas.height;
 
         // Text Mode
         if (textMode) {
-            if ('touches' in e) return; // Basic text support only for mouse for now? Or allow touch tap.
+            if ('touches' in e) return;
             setTextInputPos({ x: cssX, y: cssY });
             setActiveTextPage(pageNum);
             setTextInputVisible(true);
@@ -477,10 +507,10 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         if (selectedSymbol) {
             const ctx = getDrawContext(pageNum);
             if (ctx) {
-                drawSymbol(ctx, selectedSymbol, canvasX, canvasY, currentColor);
+                drawSymbol(ctx, selectedSymbol, normX, normY, currentColor, canvas.width, canvas.height);
                 onSymbolPlaced?.();
 
-                const action: DrawingAction = { type: 'symbol', symbol: selectedSymbol, x: canvasX, y: canvasY, color: currentColor };
+                const action: DrawingAction = { type: 'symbol', symbol: selectedSymbol, x: normX, y: normY, color: currentColor };
 
                 setDrawingHistory(prev => ({
                     ...prev,
@@ -502,8 +532,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         if (!drawingEnabled) return;
 
         isDrawingRef.current = true;
-        lastPointRef.current = { x: canvasX, y: canvasY };
-        currentPathRef.current = [{ x: canvasX, y: canvasY }];
+        lastPointRef.current = { x: normX, y: normY };
+        currentPathRef.current = [{ x: normX, y: normY }];
         activeDrawingPageRef.current = pageNum;
     };
 
@@ -519,10 +549,12 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         const scaleY = canvas.height / rect.height;
         const x = (clientX - rect.left) * scaleX;
         const y = (clientY - rect.top) * scaleY;
+        const normX = x / canvas.width;
+        const normY = y / canvas.height;
 
-        drawLine(ctx, lastPointRef.current, { x, y }, currentColor, lineWidth, isEraser);
-        lastPointRef.current = { x, y };
-        currentPathRef.current.push({ x, y });
+        drawLine(ctx, lastPointRef.current, { x: normX, y: normY }, currentColor, lineWidth, isEraser, canvas.width, canvas.height);
+        lastPointRef.current = { x: normX, y: normY };
+        currentPathRef.current.push({ x: normX, y: normY });
     };
 
     const handleAnnotationEnd = () => {
@@ -576,7 +608,41 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                 }
             });
         }
+        if (clearTrigger > 0) {
+            // Clear history state
+            setDrawingHistory({});
+
+            // Clear canvases visually
+            annotationCanvasRefs.current.forEach((canvas) => {
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            });
+        }
     }, [clearTrigger]);
+
+    // Scroll Handler (Teacher Only)
+    const handleScroll = () => {
+        if (!pagesContainerRef.current || !isTeacher) return;
+
+        const now = Date.now();
+        if (now - lastScrollEmit.current < 50) return; // 50ms throttle (20fps)
+
+        const { scrollTop, scrollLeft, scrollHeight, clientHeight, scrollWidth, clientWidth } = pagesContainerRef.current;
+        // Avoid division by zero
+        const maxScrollY = scrollHeight - clientHeight;
+        const maxScrollX = scrollWidth - clientWidth;
+
+        const percentY = maxScrollY > 0 ? scrollTop / maxScrollY : 0;
+        const percentX = maxScrollX > 0 ? scrollLeft / maxScrollX : 0;
+
+        emit?.('whiteboard-draw', {
+            sessionId,
+            event: { type: 'scroll', percentY, percentX, pageNum: currentPage }
+        });
+        lastScrollEmit.current = now;
+    };
 
     return (
         <div ref={containerRef} className="h-full flex flex-col bg-dark-300 rounded-2xl overflow-hidden">
@@ -661,7 +727,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
             {/* PDF Pages - Responsive Grid */}
             <div
                 ref={pagesContainerRef}
-                className="flex-1 overflow-auto p-4 bg-dark-400"
+                className={`flex-1 p-4 bg-dark-400 ${isTeacher ? 'overflow-auto' : 'overflow-hidden'}`}
+                onScroll={handleScroll}
             >
                 {isLoading ? (
                     <div className="h-full flex flex-col items-center justify-center gap-4">

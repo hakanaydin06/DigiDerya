@@ -507,6 +507,10 @@ export const Room: React.FC<RoomProps> = ({
                             textMode={textMode}
                             selectedSymbol={selectedSymbol}
                             onSymbolPlaced={() => setSelectedSymbol(null)}
+                            // Socket props
+                            emit={emit}
+                            on={on}
+                            off={off}
                         />
 
                         {/* Whiteboard Overlay - Toolbar Only */}

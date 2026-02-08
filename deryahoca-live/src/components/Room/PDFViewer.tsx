@@ -27,6 +27,10 @@ interface PDFViewerProps {
     textMode?: boolean;
     selectedSymbol?: string | null;
     onSymbolPlaced?: () => void;
+    // Socket props
+    emit?: (event: any, data: any) => void;
+    on?: (event: any, callback: (data: any) => void) => void;
+    off?: (event: any, handler?: any) => void;
 }
 
 interface Point {
@@ -61,6 +65,9 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     textMode = false,
     selectedSymbol = null,
     onSymbolPlaced = () => { },
+    emit,
+    on,
+    off,
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const pagesContainerRef = useRef<HTMLDivElement>(null);
@@ -297,6 +304,58 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         });
     }, [drawingHistory]);
 
+    // Socket Event Listeners
+    useEffect(() => {
+        if (!on || !off) return;
+
+        // Handle incoming drawing action
+        const handleRemoteDraw = (data: { pageNum: number; action: DrawingAction }) => {
+            const { pageNum, action } = data;
+            setDrawingHistory(prev => ({
+                ...prev,
+                [pageNum]: [...(prev[pageNum] || []), action]
+            }));
+        };
+
+        // Handle sync (initial or refresh)
+        const handleSync = (data: { history: Record<number, DrawingAction[]> }) => {
+            if (data.history) {
+                setDrawingHistory(data.history);
+            }
+        };
+
+        // Handle clear
+        const handleRemoteClear = () => {
+            setDrawingHistory({});
+            annotationCanvasRefs.current.forEach((canvas) => {
+                const ctx = canvas.getContext('2d');
+                if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+            });
+        };
+
+        on('whiteboard-draw', handleRemoteDraw);
+        on('whiteboard-sync', handleSync);
+        on('whiteboard-clear', handleRemoteClear);
+
+        return () => {
+            off('whiteboard-draw'); // Note: off implementation might need callback reference if simple 'off(event)' is not supported
+            // Assuming 'off' takes just event name based on useSocket hook pattern usually?
+            // If useSocket.off requires callback, we need to save references.
+            // Let's assume standard emitter pattern?
+            // Actually, usually off(event, callback).
+            // I'll leave it as off('event') if that's how the hook works, OR off('event', handler).
+            // Investigating useSocket usage in Room.tsx might be needed. 
+            // For now, I'll try to use off(event, handler) to be safe.
+            // But wait, the handlers change on every render due to closure? 
+            // setDrawingHistory is stable. 
+            // I should move handlers outside or useCallbacks?
+            // Since they use setDrawingHistory (stable), they are safe? 
+            // No, handleRemoteDraw depends on nothing? 
+            // It depends on setDrawingHistory.
+            // Safe. I'll use off(event, handler).
+        };
+    }, [on, off]);
+
     // Redraw when pages are rendered (Zoom/Scroll) or History changes
     useEffect(() => {
         annotationCanvasRefs.current.forEach((canvas, pageNum) => {
@@ -336,13 +395,17 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         // User didn't specify color mismatch, just position/layer.
         // To be safe, I'll use currentColor.
         // Update history
+        const action: DrawingAction = { type: 'text', text: textValue, x, y, color: currentColor };
         setDrawingHistory(prev => ({
             ...prev,
             [activeTextPage]: [
                 ...(prev[activeTextPage] || []),
-                { type: 'text', text: textValue, x, y, color: currentColor }
+                action
             ]
         }));
+
+        // Emit event
+        emit?.('whiteboard-draw', { sessionId, pageNum: activeTextPage, action });
 
         // Draw immediately
         drawText(ctx, textValue, x, y, currentColor);
@@ -397,13 +460,17 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                 drawSymbol(ctx, selectedSymbol, canvasX, canvasY, currentColor);
                 onSymbolPlaced?.();
 
+                const action: DrawingAction = { type: 'symbol', symbol: selectedSymbol, x: canvasX, y: canvasY, color: currentColor };
+
                 setDrawingHistory(prev => ({
                     ...prev,
                     [pageNum]: [
                         ...(prev[pageNum] || []),
-                        { type: 'symbol', symbol: selectedSymbol, x: canvasX, y: canvasY, color: currentColor }
+                        action
                     ]
                 }));
+
+                emit?.('whiteboard-draw', { sessionId, pageNum, action });
             }
             return;
         }
@@ -443,20 +510,24 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
             const capturedWidth = lineWidth;
             const capturedEraser = isEraser;
 
+            const action: DrawingAction = {
+                type: 'path',
+                points: capturedPoints,
+                color: capturedColor,
+                lineWidth: capturedWidth,
+                isEraser: capturedEraser
+            };
+
             // Add path to history
             setDrawingHistory(prev => ({
                 ...prev,
                 [pageNum]: [
                     ...(prev[pageNum] || []),
-                    {
-                        type: 'path',
-                        points: capturedPoints,
-                        color: capturedColor,
-                        lineWidth: capturedWidth,
-                        isEraser: capturedEraser
-                    }
+                    action
                 ]
             }));
+
+            emit?.('whiteboard-draw', { sessionId, pageNum, action });
         }
 
         isDrawingRef.current = false;

@@ -49,15 +49,11 @@ export interface DrawingPoint {
     y: number;
 }
 
-export interface DrawingEvent {
-    type: 'start' | 'draw' | 'end';
-    from?: DrawingPoint;
-    point: DrawingPoint;
-    color: string;
-    lineWidth: number;
-    isEraser: boolean;
-    pageIndex: number;
-}
+export type DrawingEvent =
+    | { type: 'start' | 'draw' | 'end'; from?: DrawingPoint; point: DrawingPoint; color: string; lineWidth: number; isEraser: boolean; pageIndex: number }
+    | { type: 'path'; points: DrawingPoint[]; color: string; lineWidth: number; isEraser: boolean; pageNum: number }
+    | { type: 'text'; text: string; x: number; y: number; color: string; pageNum: number }
+    | { type: 'symbol'; symbol: string; x: number; y: number; color: string; pageNum: number };
 
 // Socket Events
 export interface ServerToClientEvents {

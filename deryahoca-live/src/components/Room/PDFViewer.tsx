@@ -309,12 +309,29 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         if (!on || !off) return;
 
         // Handle incoming drawing action
-        const handleRemoteDraw = (data: { pageNum: number; action: DrawingAction }) => {
-            const { pageNum, action } = data;
-            setDrawingHistory(prev => ({
-                ...prev,
-                [pageNum]: [...(prev[pageNum] || []), action]
-            }));
+        const handleRemoteDraw = (data: any) => {
+            if (!data) return;
+
+            // Check if it's one of our new supported types with pageNum
+            if ('pageNum' in data && (data.type === 'path' || data.type === 'text' || data.type === 'symbol')) {
+                const pageNum = data.pageNum;
+                let action: DrawingAction;
+
+                if (data.type === 'path') {
+                    action = { type: 'path', points: data.points, color: data.color, lineWidth: data.lineWidth, isEraser: data.isEraser };
+                } else if (data.type === 'text') {
+                    action = { type: 'text', text: data.text, x: data.x, y: data.y, color: data.color };
+                } else if (data.type === 'symbol') {
+                    action = { type: 'symbol', symbol: data.symbol, x: data.x, y: data.y, color: data.color };
+                } else {
+                    return;
+                }
+
+                setDrawingHistory(prev => ({
+                    ...prev,
+                    [pageNum]: [...(prev[pageNum] || []), action]
+                }));
+            }
         };
 
         // Handle sync (initial or refresh)
@@ -405,7 +422,10 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         }));
 
         // Emit event
-        emit?.('whiteboard-draw', { sessionId, pageNum: activeTextPage, action });
+        emit?.('whiteboard-draw', {
+            sessionId,
+            event: { ...action, pageNum: activeTextPage }
+        });
 
         // Draw immediately
         drawText(ctx, textValue, x, y, currentColor);
@@ -470,7 +490,10 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                     ]
                 }));
 
-                emit?.('whiteboard-draw', { sessionId, pageNum, action });
+                emit?.('whiteboard-draw', {
+                    sessionId,
+                    event: { ...action, pageNum }
+                });
             }
             return;
         }
@@ -527,7 +550,10 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                 ]
             }));
 
-            emit?.('whiteboard-draw', { sessionId, pageNum, action });
+            emit?.('whiteboard-draw', {
+                sessionId,
+                event: { ...action, pageNum }
+            });
         }
 
         isDrawingRef.current = false;

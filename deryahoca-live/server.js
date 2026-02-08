@@ -55,10 +55,38 @@ app.prepare().then(() => {
       const existingWaiting = Array.from(waitingRoom.values())
         .find(w => w.sessionId === sessionId && w.userName === userName && w.id !== socket.id);
 
-      if (existingParticipant || existingWaiting) {
-        console.log(`⚠️ Duplicate name prevented: ${userName}`);
-        socket.emit('join-error', { message: 'Bu isimde bir kullanıcı zaten derste mevcut. Lütfen isminizin sonuna numara ekleyerek tekrar deneyin.' });
-        return;
+      if (existingParticipant) {
+        // Check if the existing connection is actually active
+        const existingSocket = io.sockets.sockets.get(existingParticipant.id);
+        if (existingSocket && existingSocket.connected) {
+          console.log(`⚠️ Duplicate name prevented: ${userName}`);
+          socket.emit('join-error', { message: 'Bu isimde bir kullanıcı zaten derste mevcut. Lütfen isminizin sonuna numara ekleyerek tekrar deneyin.' });
+          return;
+        } else {
+          // Cleanup stale participant
+          console.log(`🧹 Cleaning up stale participant: ${userName}`);
+          participants.delete(existingParticipant.id);
+          // Notify room regarding stale leave if needed, but rejoin usually handles it.
+          // Better to emit leave to ensure UI clears old entry before adding new one
+          io.to(sessionId).emit('user-left', {
+            id: existingParticipant.id,
+            userName: existingParticipant.userName
+          });
+        }
+      }
+
+      if (existingWaiting) {
+        // Check if stale
+        const existingSocket = io.sockets.sockets.get(existingWaiting.id);
+        if (existingSocket && existingSocket.connected) {
+          console.log(`⚠️ Duplicate name prevented (Waiting): ${userName}`);
+          socket.emit('join-error', { message: 'Bu isimde bir kullanıcı zaten bekleme listesinde.' });
+          return;
+        } else {
+          console.log(`🧹 Cleaning up stale waiting student: ${userName}`);
+          waitingRoom.delete(existingWaiting.id);
+          io.to(sessionId).emit('waiting-student-left', { id: existingWaiting.id });
+        }
       }
 
       if (isTeacher) {
@@ -154,6 +182,8 @@ app.prepare().then(() => {
 
       // Remove from waiting room
       waitingRoom.delete(studentSocketId);
+      // Notify everyone (especially teacher) that student left waiting room
+      io.to(sessionId).emit('waiting-student-left', { id: studentSocketId });
 
       // Create participant entry
       const participant = {
@@ -225,6 +255,7 @@ app.prepare().then(() => {
       console.log(`❌ Teacher denied ${waitingStudent.userName}`);
 
       waitingRoom.delete(studentSocketId);
+      io.to(sessionId).emit('waiting-student-left', { id: studentSocketId });
 
       const studentSocket = io.sockets.sockets.get(studentSocketId);
       if (studentSocket) {
@@ -309,6 +340,19 @@ app.prepare().then(() => {
           id: socket.id,
           userName: participant.userName,
           isHandRaised
+        });
+      }
+    });
+
+    // Lower hand (Teacher or Self)
+    socket.on('lower-hand', ({ targetId }) => {
+      const participant = participants.get(targetId);
+      if (participant) {
+        participant.isHandRaised = false;
+        io.to(participant.sessionId).emit('hand-raised', {
+          id: targetId,
+          userName: participant.userName,
+          isHandRaised: false
         });
       }
     });

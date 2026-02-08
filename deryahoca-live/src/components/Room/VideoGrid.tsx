@@ -10,6 +10,7 @@ interface VideoGridProps {
     remoteStreams: Map<string, MediaStream>;
     localStream: MediaStream | null;
     localParticipant: Participant | null;
+    onLowerHand?: (targetId: string) => void;
 }
 
 export const VideoGrid: React.FC<VideoGridProps> = ({
@@ -17,6 +18,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
     remoteStreams,
     localStream,
     localParticipant,
+    onLowerHand,
 }) => {
     // Debug logging for stream issues
     console.log('🎬 VideoGrid render:', {
@@ -165,7 +167,14 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
                                         initial={{ scale: 0 }}
                                         animate={{ scale: 1 }}
                                         exit={{ scale: 0 }}
-                                        className="absolute top-2 right-2"
+                                        className={`absolute top-2 right-2 ${onLowerHand ? 'cursor-pointer hover:scale-110 transition-transform' : ''}`}
+                                        onClick={(e) => {
+                                            if (onLowerHand) {
+                                                e.stopPropagation();
+                                                onLowerHand(participant.id);
+                                            }
+                                        }}
+                                        title={onLowerHand ? "Eli İndir" : undefined}
                                     >
                                         <motion.span
                                             animate={{ y: [0, -5, 0] }}

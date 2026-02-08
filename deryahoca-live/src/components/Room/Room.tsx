@@ -303,6 +303,13 @@ export const Room: React.FC<RoomProps> = ({
         }
     };
 
+    // Teacher lowers student hand
+    const handleLowerHand = (targetId: string) => {
+        if (isTeacher) {
+            emit('lower-hand', { targetId });
+        }
+    };
+
     const handleToggleHand = () => {
         const newState = !isHandRaised;
         setIsHandRaised(newState);
@@ -389,6 +396,24 @@ export const Room: React.FC<RoomProps> = ({
 
                 {/* Status Bar */}
                 <div className="flex items-center gap-4">
+                    {/* Student Controls (Moved from bottom) */}
+                    {!isTeacher && (
+                        <div className="flex items-center gap-2 mr-2 border-r border-white/10 pr-4">
+                            <Controls
+                                isMuted={isMuted}
+                                isCameraOff={isCameraOff}
+                                isHandRaised={isHandRaised}
+                                isTeacher={isTeacher}
+                                onToggleMute={handleToggleMute}
+                                onToggleCamera={handleToggleCamera}
+                                onToggleHand={handleToggleHand}
+                                onLeave={handleLeave}
+                                onSelectPdf={() => setShowPdfSelector(true)}
+                                onEndSession={handleEndSession}
+                            />
+                        </div>
+                    )}
+
                     {/* Connection Status */}
                     <div className="flex items-center gap-2 px-3 py-1.5 bg-brand-panel/50 rounded-full border border-white/5">
                         <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-brand-accent animate-pulse' : 'bg-red-500'}`} />
@@ -561,6 +586,7 @@ export const Room: React.FC<RoomProps> = ({
                             remoteStreams={remoteStreams}
                             localStream={localStream}
                             localParticipant={localParticipant}
+                            onLowerHand={handleLowerHand}
                         />
 
                         {/* Focus Mode Message for Students */}
@@ -579,23 +605,7 @@ export const Room: React.FC<RoomProps> = ({
                 </div>
             </div>
 
-            {/* Floating Toolbar - Students Only */}
-            {!isTeacher && (
-                <div className="floating-toolbar z-20">
-                    <Controls
-                        isMuted={isMuted}
-                        isCameraOff={isCameraOff}
-                        isHandRaised={isHandRaised}
-                        isTeacher={isTeacher}
-                        onToggleMute={handleToggleMute}
-                        onToggleCamera={handleToggleCamera}
-                        onToggleHand={handleToggleHand}
-                        onLeave={handleLeave}
-                        onSelectPdf={() => setShowPdfSelector(true)}
-                        onEndSession={handleEndSession}
-                    />
-                </div>
-            )}
+
 
             {/* PDF Selector Modal */}
             <AnimatePresence>

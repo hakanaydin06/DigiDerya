@@ -97,6 +97,7 @@ export interface ClientToServerEvents {
     'toggle-audio': (data: { isMuted: boolean }) => void;
     'toggle-video': (data: { isCameraOff: boolean }) => void;
     'raise-hand': (data: { isHandRaised: boolean }) => void;
+    'lower-hand': (data: { targetId: string }) => void;
     'pdf-change': (data: { sessionId: string; pdfState: PDFState }) => void;
     'pdf-page-change': (data: { sessionId: string; page: number }) => void;
     'pdf-zoom-change': (data: { sessionId: string; zoom: number }) => void;

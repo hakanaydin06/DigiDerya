@@ -39,6 +39,7 @@ export const Room: React.FC<RoomProps> = ({
     const [waitingStudents, setWaitingStudents] = useState<WaitingStudent[]>([]);
     const [focusMode, setFocusMode] = useState(false);
     const [drawingEnabled, setDrawingEnabled] = useState(false); // Drawing mode toggle (whiteboard always visible)
+    const [clearTrigger, setClearTrigger] = useState(0);
     const boardContainerRef = useRef<HTMLDivElement>(null);
     const [boardSize, setBoardSize] = useState({ width: 800, height: 600 });
 
@@ -251,6 +252,15 @@ export const Room: React.FC<RoomProps> = ({
         const newState = !focusMode;
         setFocusMode(newState);
         emit('toggle-focus-mode', { sessionId, enabled: newState });
+    };
+
+    // Clear whiteboard (Teacher only)
+    const handleClearBoard = () => {
+        if (window.confirm('Bu sayfadaki tüm çizimleri silmek istediğinize emin misiniz?')) {
+            const pageIndex = pdfState ? pdfState.currentPage - 1 : 0;
+            emit('whiteboard-clear', { sessionId, pageIndex });
+            setClearTrigger(prev => prev + 1); // Trigger local clear
+        }
     };
 
     // Control handlers
@@ -473,6 +483,17 @@ export const Room: React.FC<RoomProps> = ({
                             height={boardSize.height}
                             drawingEnabled={drawingEnabled}
                             pageIndex={pdfState ? pdfState.currentPage - 1 : 0}
+                            clearTrigger={clearTrigger}
+                            focusMode={focusMode}
+                            onToggleFocusMode={handleToggleFocusMode}
+                            onToggleDrawing={() => setDrawingEnabled(!drawingEnabled)}
+                            onClearBoard={handleClearBoard}
+                            isMuted={isMuted}
+                            isCameraOff={isCameraOff}
+                            onToggleMute={handleToggleMute}
+                            onToggleCamera={handleToggleCamera}
+                            onSelectPdf={() => setShowPdfSelector(true)}
+                            onLeave={handleEndSession}
                         />
 
                         {/* Lightboard Corner Accents */}
@@ -509,55 +530,23 @@ export const Room: React.FC<RoomProps> = ({
                 </div>
             </div>
 
-            {/* Floating Toolbar */}
-            <div className="floating-toolbar z-20">
-                <Controls
-                    isMuted={isMuted}
-                    isCameraOff={isCameraOff}
-                    isHandRaised={isHandRaised}
-                    isTeacher={isTeacher}
-                    onToggleMute={handleToggleMute}
-                    onToggleCamera={handleToggleCamera}
-                    onToggleHand={handleToggleHand}
-                    onLeave={handleLeave}
-                    onSelectPdf={() => setShowPdfSelector(true)}
-                    onEndSession={handleEndSession}
-                />
-
-                {/* Teacher Extra Controls */}
-                {isTeacher && (
-                    <>
-                        <div className="w-px h-8 bg-white/10" />
-                        <div className="flex items-center gap-2">
-                            {/* Focus Mode Toggle */}
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={handleToggleFocusMode}
-                                className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all flex items-center gap-2 ${focusMode
-                                    ? 'bg-brand-highlight text-brand-dark shadow-glow-highlight'
-                                    : 'bg-brand-panel/80 text-text-muted border border-white/10 hover:border-brand-highlight/50'
-                                    }`}
-                            >
-                                🎯 Odak
-                            </motion.button>
-
-                            {/* Drawing Mode Toggle */}
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => setDrawingEnabled(!drawingEnabled)}
-                                className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all flex items-center gap-2 ${drawingEnabled
-                                    ? 'bg-brand-accent text-white shadow-glow-accent'
-                                    : 'bg-brand-panel/80 text-text-muted border border-white/10 hover:border-brand-accent/50'
-                                    }`}
-                            >
-                                ✏️ {drawingEnabled ? 'Çizimi Kapat' : 'Çiz'}
-                            </motion.button>
-                        </div>
-                    </>
-                )}
-            </div>
+            {/* Floating Toolbar - Students Only */}
+            {!isTeacher && (
+                <div className="floating-toolbar z-20">
+                    <Controls
+                        isMuted={isMuted}
+                        isCameraOff={isCameraOff}
+                        isHandRaised={isHandRaised}
+                        isTeacher={isTeacher}
+                        onToggleMute={handleToggleMute}
+                        onToggleCamera={handleToggleCamera}
+                        onToggleHand={handleToggleHand}
+                        onLeave={handleLeave}
+                        onSelectPdf={() => setShowPdfSelector(true)}
+                        onEndSession={handleEndSession}
+                    />
+                </div>
+            )}
 
             {/* PDF Selector Modal */}
             <AnimatePresence>

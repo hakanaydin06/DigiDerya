@@ -18,6 +18,17 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
     localStream,
     localParticipant,
 }) => {
+    // Debug logging for stream issues
+    console.log('🎬 VideoGrid render:', {
+        hasLocalStream: !!localStream,
+        localStreamId: localStream?.id,
+        localStreamActive: localStream?.active,
+        localVideoTracks: localStream?.getVideoTracks().length,
+        hasLocalParticipant: !!localParticipant,
+        isLocalTeacher: localParticipant?.isTeacher,
+        participantCount: participants.length
+    });
+
     // Filter out duplicates by ID
     const uniqueParticipants = participants.filter((p, index, self) =>
         index === self.findIndex(t => t.id === p.id)
@@ -62,10 +73,19 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
                         animate={{ opacity: 1, scale: 1 }}
                         className="relative"
                     >
-                        {isLocalTeacher && localParticipant ? (
+                        {isLocalTeacher ? (
                             <div className="video-frame teacher active bg-brand-dark">
                                 <VideoPlayer
-                                    participant={localParticipant}
+                                    key={`local-teacher-${localStream?.id}`}
+                                    participant={{
+                                        id: localParticipant?.id || 'local',
+                                        userName: localParticipant?.userName || 'Derya Hoca',
+                                        isTeacher: true,
+                                        sessionId: localParticipant?.sessionId || '',
+                                        isMuted: localParticipant?.isMuted || false,
+                                        isCameraOff: false, // Always show video element for local user
+                                        isHandRaised: localParticipant?.isHandRaised || false
+                                    }}
                                     stream={localStream || undefined}
                                     isLocal={true}
                                     isSpeaking={false}

@@ -20,32 +20,52 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     isTeacher = false,
 }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const { userName, isMuted, isCameraOff, isHandRaised } = participant;
 
     useEffect(() => {
-        if (videoRef.current && stream) {
-            videoRef.current.srcObject = stream;
-        }
-    }, [stream]);
+        const videoElement = videoRef.current;
+        console.log('🎥 VideoPlayer useEffect:', {
+            hasVideoElement: !!videoElement,
+            hasStream: !!stream,
+            streamId: stream?.id,
+            streamActive: stream?.active,
+            videoTracks: stream?.getVideoTracks().length,
+            isLocal,
+            isCameraOff
+        });
 
-    const { userName, isMuted, isCameraOff, isHandRaised } = participant;
+        if (videoElement && stream) {
+            // Always set srcObject even if camera is "off" - the stream might still be valid
+            if (videoElement.srcObject !== stream) {
+                console.log('🎥 Setting srcObject to stream:', stream.id);
+                videoElement.srcObject = stream;
+            }
+            // Ensure video plays
+            videoElement.play().catch(err => {
+                if (err.name !== 'AbortError') {
+                    console.error('Error playing video:', err);
+                }
+            });
+        }
+    }, [stream, isLocal, isCameraOff]);
 
     return (
         <div className="relative w-full aspect-video bg-brand-dark rounded-xl overflow-hidden group">
-            {/* Video Element */}
+            {/* Video Element - Always rendered, visibility controlled by CSS */}
             <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted={isLocal}
-                className={`w-full h-full object-cover ${isCameraOff ? 'hidden' : ''}`}
+                className={`w-full h-full object-cover transition-opacity duration-300 ${isCameraOff ? 'opacity-0 absolute' : 'opacity-100'}`}
             />
 
             {/* Camera Off State */}
             {isCameraOff && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-dark to-brand-panel">
                     <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isTeacher
-                            ? 'bg-brand-primary/20 border-2 border-brand-primary/40'
-                            : 'bg-brand-accent/20 border-2 border-brand-accent/40'
+                        ? 'bg-brand-primary/20 border-2 border-brand-primary/40'
+                        : 'bg-brand-accent/20 border-2 border-brand-accent/40'
                         }`}>
                         <span className="text-2xl">{isTeacher ? '👨‍🔬' : '🧪'}</span>
                     </div>

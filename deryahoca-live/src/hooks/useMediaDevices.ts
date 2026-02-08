@@ -149,14 +149,9 @@ export const useMediaDevices = (options: UseMediaDevicesOptions = { video: true,
         await initializeStream(state.selectedVideoDevice, deviceId);
     }, [initializeStream, state.selectedVideoDevice]);
 
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            if (streamRef.current) {
-                streamRef.current.getTracks().forEach(track => track.stop());
-            }
-        };
-    }, []);
+    // NOTE: Removed automatic cleanup on unmount
+    // The stream should persist when passed from Lobby to Room
+    // Stream cleanup is handled manually in page.tsx handleLeaveRoom
 
     // Stop all tracks
     const stopStream = useCallback(() => {

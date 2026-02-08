@@ -51,17 +51,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     return (
         <div className="relative w-full aspect-video bg-brand-dark rounded-xl overflow-hidden group">
-            {/* Video Element - Always rendered, visibility controlled by CSS */}
+            {/* Video Element - Always visible, never hidden */}
             <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted={isLocal}
-                className={`w-full h-full object-cover transition-opacity duration-300 ${isCameraOff ? 'opacity-0 absolute' : 'opacity-100'}`}
+                className="w-full h-full object-cover"
             />
 
-            {/* Camera Off State */}
-            {isCameraOff && (
+            {/* Camera Off State - Show when no stream or camera explicitly off */}
+            {(!stream || isCameraOff) && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-dark to-brand-panel">
                     <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isTeacher
                         ? 'bg-brand-primary/20 border-2 border-brand-primary/40'

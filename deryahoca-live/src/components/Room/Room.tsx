@@ -8,6 +8,7 @@ import { getSocket } from '@/lib/socket/client';
 import { VideoGrid } from './VideoGrid';
 import { PDFViewer } from './PDFViewer';
 import { Controls } from './Controls';
+import { ClassTimer } from './ClassTimer';
 import { Whiteboard } from './Whiteboard';
 import type { Participant, PDFState, WaitingStudent } from '@/types';
 
@@ -26,6 +27,15 @@ export const Room: React.FC<RoomProps> = ({
     localStream,
     onLeave,
 }) => {
+    // Debug: Log stream info at Room level
+    console.log('🏠 Room component render:', {
+        hasLocalStream: !!localStream,
+        localStreamId: localStream?.id,
+        localStreamActive: localStream?.active,
+        videoTracks: localStream?.getVideoTracks().length,
+        audioTracks: localStream?.getAudioTracks().length,
+    });
+
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [localParticipant, setLocalParticipant] = useState<Participant | null>(null);
     const [pdfState, setPdfState] = useState<PDFState | null>(null);
@@ -42,6 +52,13 @@ export const Room: React.FC<RoomProps> = ({
     const [clearTrigger, setClearTrigger] = useState(0);
     const boardContainerRef = useRef<HTMLDivElement>(null);
     const [boardSize, setBoardSize] = useState({ width: 800, height: 600 });
+
+    // Lifted drawing state
+    const [currentColor, setCurrentColor] = useState('#FF0000');
+    const [lineWidth, setLineWidth] = useState(3);
+    const [isEraser, setIsEraser] = useState(false);
+    const [textMode, setTextMode] = useState(false);
+    const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
 
     // Update board size
     useEffect(() => {
@@ -363,6 +380,13 @@ export const Room: React.FC<RoomProps> = ({
                     </div>
                 </div>
 
+                {/* Class Timer - Centered */}
+                {isTeacher && (
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                        <ClassTimer />
+                    </div>
+                )}
+
                 {/* Status Bar */}
                 <div className="flex items-center gap-4">
                     {/* Connection Status */}
@@ -473,9 +497,19 @@ export const Room: React.FC<RoomProps> = ({
                             isTeacher={isTeacher}
                             onPageChange={handlePageChange}
                             onZoomChange={handleZoomChange}
+                            // Annotation props
+                            sessionId={sessionId}
+                            drawingEnabled={drawingEnabled}
+                            clearTrigger={clearTrigger}
+                            currentColor={currentColor}
+                            lineWidth={lineWidth}
+                            isEraser={isEraser}
+                            textMode={textMode}
+                            selectedSymbol={selectedSymbol}
+                            onSymbolPlaced={() => setSelectedSymbol(null)}
                         />
 
-                        {/* Whiteboard Overlay - Always visible to show drawings */}
+                        {/* Whiteboard Overlay - Toolbar Only */}
                         <Whiteboard
                             sessionId={sessionId}
                             isTeacher={isTeacher}
@@ -494,6 +528,17 @@ export const Room: React.FC<RoomProps> = ({
                             onToggleCamera={handleToggleCamera}
                             onSelectPdf={() => setShowPdfSelector(true)}
                             onLeave={handleEndSession}
+                            // Shared State Props
+                            currentColor={currentColor}
+                            setCurrentColor={setCurrentColor}
+                            lineWidth={lineWidth}
+                            setLineWidth={setLineWidth}
+                            isEraser={isEraser}
+                            setIsEraser={setIsEraser}
+                            textMode={textMode}
+                            setTextMode={setTextMode}
+                            selectedSymbol={selectedSymbol}
+                            setSelectedSymbol={setSelectedSymbol}
                         />
 
                         {/* Lightboard Corner Accents */}

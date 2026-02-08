@@ -10,20 +10,31 @@ interface WhiteboardProps {
     isTeacher: boolean;
     width: number;
     height: number;
-    drawingEnabled?: boolean;
+    drawingEnabled: boolean;
     pageIndex: number;
-    clearTrigger?: number;
-    focusMode?: boolean;
-    onToggleFocusMode?: () => void;
-    onToggleDrawing?: () => void;
-    onClearBoard?: () => void;
+    clearTrigger: number;
+    focusMode: boolean;
+    onToggleFocusMode: () => void;
+    onToggleDrawing: () => void;
+    onClearBoard: () => void; // Fixed type
     // Media controls
-    isMuted?: boolean;
-    isCameraOff?: boolean;
-    onToggleMute?: () => void;
-    onToggleCamera?: () => void;
-    onSelectPdf?: () => void;
-    onLeave?: () => void;
+    isMuted: boolean;
+    isCameraOff: boolean;
+    onToggleMute: () => void;
+    onToggleCamera: () => void;
+    onSelectPdf: () => void;
+    onLeave: () => void;
+    // Shared State Props
+    currentColor: string;
+    setCurrentColor: (color: string) => void;
+    lineWidth: number;
+    setLineWidth: (width: number) => void;
+    isEraser: boolean;
+    setIsEraser: (eraser: boolean) => void;
+    textMode: boolean;
+    setTextMode: (mode: boolean) => void;
+    selectedSymbol: string | null;
+    setSelectedSymbol: (symbol: string | null) => void;
 }
 
 export const Whiteboard: React.FC<WhiteboardProps> = ({
@@ -44,188 +55,84 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
     onToggleCamera,
     onSelectPdf,
     onLeave,
+    // Shared State Props
+    currentColor,
+    setCurrentColor,
+    lineWidth,
+    setLineWidth,
+    isEraser,
+    setIsEraser,
+    textMode,
+    setTextMode,
+    selectedSymbol,
+    setSelectedSymbol,
 }) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [isDrawing, setIsDrawing] = useState(false);
-    const [currentColor, setCurrentColor] = useState('#FF0000');
-    const [isEraser, setIsEraser] = useState(false);
-    const [lineWidth, setLineWidth] = useState(3);
-    const lastPointRef = useRef<DrawingPoint | null>(null);
+    // Shared state is now passed via props
+    const [showColorPalette, setShowColorPalette] = useState(false);
+    const [showSymbolPicker, setShowSymbolPicker] = useState(false);
 
-    const getContext = useCallback(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return null;
-        return canvas.getContext('2d');
-    }, []);
 
-    const draw = useCallback((
-        from: DrawingPoint,
-        to: DrawingPoint,
-        color: string,
-        width: number,
-        eraser: boolean
-    ) => {
-        const ctx = getContext();
-        if (!ctx) return;
+    // Drawing logic removed - handled in PDFViewer
 
-        ctx.beginPath();
-        ctx.moveTo(from.x, from.y);
-        ctx.lineTo(to.x, to.y);
+    // Timer Logic Removed (Moved to ClassTimer)
 
-        if (eraser) {
-            ctx.globalCompositeOperation = 'destination-out';
-            ctx.strokeStyle = 'rgba(0,0,0,1)';
-            ctx.lineWidth = width * 5;
-        } else {
-            ctx.globalCompositeOperation = 'source-over';
-            ctx.strokeStyle = color;
-            ctx.lineWidth = width;
-        }
-
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.stroke();
-        ctx.closePath();
-        ctx.globalCompositeOperation = 'source-over';
-    }, [getContext]);
-
-    const clearCanvas = useCallback(() => {
-        const canvas = canvasRef.current;
-        const ctx = getContext();
-        if (!canvas || !ctx) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }, [getContext]);
-
-    useEffect(() => {
-        if (clearTrigger > 0) {
-            clearCanvas();
-        }
-    }, [clearTrigger, clearCanvas]);
-
-    useEffect(() => {
-        const socket = getSocket();
-
-        const handleDrawingEvent = (event: DrawingEvent & { from?: DrawingPoint }) => {
-            if (event.pageIndex !== undefined && event.pageIndex !== pageIndex) return;
-            if (event.type === 'draw' && event.from) {
-                draw(event.from, event.point, event.color, event.lineWidth, event.isEraser);
-            }
-        };
-
-        const handleClearCanvas = (data?: { pageIndex?: number }) => {
-            if (data?.pageIndex !== undefined && data.pageIndex !== pageIndex) return;
-            clearCanvas();
-        };
-
-        const handleWhiteboardSync = (strokes: (DrawingEvent & { from?: DrawingPoint })[]) => {
-            const pageStrokes = strokes.filter(s => s.pageIndex === undefined || s.pageIndex === pageIndex);
-            pageStrokes.forEach(stroke => {
-                if (stroke.type === 'draw' && stroke.from) {
-                    draw(stroke.from, stroke.point, stroke.color, stroke.lineWidth, stroke.isEraser);
-                }
-            });
-        };
-
-        socket.on('whiteboard-draw', handleDrawingEvent);
-        socket.on('whiteboard-clear', handleClearCanvas);
-        socket.on('whiteboard-sync', handleWhiteboardSync);
-
-        return () => {
-            socket.off('whiteboard-draw', handleDrawingEvent);
-            socket.off('whiteboard-clear', handleClearCanvas);
-            socket.off('whiteboard-sync', handleWhiteboardSync);
-        };
-    }, [draw, clearCanvas, pageIndex]);
-
-    const getPoint = (e: React.MouseEvent | React.TouchEvent): DrawingPoint | null => {
-        const canvas = canvasRef.current;
-        if (!canvas) return null;
-
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-
-        if ('touches' in e) {
-            const touch = e.touches[0];
-            return {
-                x: (touch.clientX - rect.left) * scaleX,
-                y: (touch.clientY - rect.top) * scaleY,
-            };
-        } else {
-            return {
-                x: (e.clientX - rect.left) * scaleX,
-                y: (e.clientY - rect.top) * scaleY,
-            };
-        }
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    const handleStart = (e: React.MouseEvent | React.TouchEvent) => {
-        if (!isTeacher || !drawingEnabled) return;
-        const point = getPoint(e);
-        if (!point) return;
-
-        setIsDrawing(true);
-        lastPointRef.current = point;
-
-        const socket = getSocket();
-        socket.emit('whiteboard-draw', {
-            sessionId,
-            event: { type: 'start', point, color: currentColor, lineWidth, isEraser, pageIndex },
-        });
-    };
-
-    const handleMove = (e: React.MouseEvent | React.TouchEvent) => {
-        if (!isTeacher || !isDrawing) return;
-        const point = getPoint(e);
-        if (!point || !lastPointRef.current) return;
-
-        draw(lastPointRef.current, point, currentColor, lineWidth, isEraser);
-
-        const socket = getSocket();
-        socket.emit('whiteboard-draw', {
-            sessionId,
-            event: { type: 'draw', from: lastPointRef.current, point, color: currentColor, lineWidth, isEraser, pageIndex },
-        });
-
-        lastPointRef.current = point;
-    };
-
-    const handleEnd = () => {
-        if (!isTeacher) return;
-        setIsDrawing(false);
-        lastPointRef.current = null;
-    };
-
-    const colors = [
+    // 6 main colors for compact palette
+    const paletteColors = [
         { name: 'Kırmızı', value: '#FF0000' },
         { name: 'Mavi', value: '#0066FF' },
         { name: 'Yeşil', value: '#00CC00' },
         { name: 'Sarı', value: '#FFCC00' },
+        { name: 'Turuncu', value: '#FF6600' },
         { name: 'Beyaz', value: '#FFFFFF' },
+    ];
+
+    // Symbols list
+    const symbols = [
+        { emoji: '✓', name: 'Onay' },
+        { emoji: '✗', name: 'Red' },
+        { emoji: '→', name: 'Sağ Ok' },
+        { emoji: '←', name: 'Sol Ok' },
+        { emoji: '↑', name: 'Yukarı Ok' },
+        { emoji: '↓', name: 'Aşağı Ok' },
+        { emoji: '⭐', name: 'Yıldız' },
+        { emoji: '❤️', name: 'Kalp' },
+        { emoji: '❗', name: 'Ünlem' },
+        { emoji: '❓', name: 'Soru' },
     ];
 
     return (
         <div className="absolute inset-0 pointer-events-none">
-            <canvas
-                ref={canvasRef}
-                width={width}
-                height={height}
-                className={`absolute inset-0 w-full h-full ${isTeacher && drawingEnabled ? 'pointer-events-auto cursor-crosshair' : 'pointer-events-none'}`}
-                onMouseDown={handleStart}
-                onMouseMove={handleMove}
-                onMouseUp={handleEnd}
-                onMouseLeave={handleEnd}
-                onTouchStart={handleStart}
-                onTouchMove={handleMove}
-                onTouchEnd={handleEnd}
-            />
+            {/* Canvas removed - Drawing handled in PDFViewer */}
+
+            {/* Selected Symbol Indicator - Kept for visibility */}
+            {selectedSymbol && (
+                <div className="absolute top-4 right-4 bg-brand-dark/95 backdrop-blur-xl rounded-lg px-3 py-2 border border-white/20 shadow-xl z-[100] pointer-events-auto flex items-center gap-2">
+                    <span className="text-2xl">{selectedSymbol}</span>
+                    <span className="text-xs text-text-muted">Yerleştirmek için tıkla</span>
+                    <button
+                        onClick={() => setSelectedSymbol(null)}
+                        className="text-red-400 hover:text-red-300 text-sm"
+                    >
+                        ✕
+                    </button>
+                </div>
+            )}
+
+            {/* Timer moved to Room Header */}
+
 
             {/* Unified Left Toolbar - Teacher Only */}
             {isTeacher && (
                 <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="absolute left-3 top-20 flex flex-col gap-1 p-1.5 bg-gradient-to-b from-brand-panel/95 to-brand-dark/95 backdrop-blur-xl rounded-xl border border-white/10 pointer-events-auto shadow-2xl z-50 max-h-[calc(100vh-120px)] overflow-y-auto scrollbar-thin scrollbar-thumb-white/20"
+                    className="absolute left-3 top-20 flex flex-col gap-1 p-1.5 bg-gradient-to-b from-brand-panel/95 to-brand-dark/95 backdrop-blur-xl rounded-xl border border-white/10 pointer-events-auto shadow-2xl z-50"
                 >
                     {/* Media Controls */}
                     <button
@@ -328,19 +235,84 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
 
                     <div className="h-px bg-white/10 mx-1" />
 
-                    {/* Colors */}
-                    {colors.map((color) => (
+                    {/* Color Button with Popup Palette */}
+                    <div className="relative">
                         <button
-                            key={color.value}
-                            onClick={() => { setCurrentColor(color.value); setIsEraser(false); }}
-                            className={`w-7 h-7 mx-auto rounded-md border-2 transition-all ${currentColor === color.value && !isEraser
-                                ? 'border-white scale-110 shadow-lg'
-                                : 'border-transparent hover:scale-105'
-                                }`}
-                            style={{ backgroundColor: color.value }}
-                            title={color.name}
+                            onClick={() => setShowColorPalette(!showColorPalette)}
+                            className="w-9 h-9 rounded-lg flex items-center justify-center border-2 border-white/30 hover:border-white/50 transition-all"
+                            style={{ backgroundColor: currentColor }}
+                            title="Renk Seç"
                         />
-                    ))}
+                        {showColorPalette && (
+                            <div className="absolute left-full ml-2 top-0 bg-brand-dark/95 backdrop-blur-xl rounded-lg p-2 border border-white/20 shadow-xl flex flex-wrap gap-1 w-24 z-[100]">
+                                {paletteColors.map((color) => (
+                                    <button
+                                        key={color.value}
+                                        onClick={() => {
+                                            setCurrentColor(color.value);
+                                            setIsEraser(false);
+                                            setShowColorPalette(false);
+                                        }}
+                                        className={`w-6 h-6 rounded border-2 transition-all ${currentColor === color.value
+                                            ? 'border-white scale-110'
+                                            : 'border-transparent hover:scale-105'
+                                            }`}
+                                        style={{ backgroundColor: color.value }}
+                                        title={color.name}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Text Button */}
+                    <button
+                        onClick={() => {
+                            setTextMode(!textMode);
+                            setShowSymbolPicker(false);
+                        }}
+                        className={`w-9 h-9 rounded-lg transition-all flex items-center justify-center ${textMode
+                            ? 'bg-primary-500 text-white'
+                            : 'bg-brand-dark/60 text-gray-400 hover:bg-brand-dark/80'
+                            }`}
+                        title="Metin Ekle"
+                    >
+                        <span className="text-sm font-bold">T</span>
+                    </button>
+
+                    {/* Symbol Button with Popup */}
+                    <div className="relative">
+                        <button
+                            onClick={() => {
+                                setShowSymbolPicker(!showSymbolPicker);
+                                setTextMode(false);
+                            }}
+                            className={`w-9 h-9 rounded-lg transition-all flex items-center justify-center ${showSymbolPicker
+                                ? 'bg-primary-500 text-white'
+                                : 'bg-brand-dark/60 text-gray-400 hover:bg-brand-dark/80'
+                                }`}
+                            title="Sembol Damgası"
+                        >
+                            <span className="text-sm">✓</span>
+                        </button>
+                        {showSymbolPicker && (
+                            <div className="absolute left-full ml-2 top-0 bg-brand-dark/95 backdrop-blur-xl rounded-lg p-2 border border-white/20 shadow-xl grid grid-cols-5 gap-1 w-32 z-[100]">
+                                {symbols.map((sym) => (
+                                    <button
+                                        key={sym.name}
+                                        onClick={() => {
+                                            setSelectedSymbol(sym.emoji);
+                                            setShowSymbolPicker(false);
+                                        }}
+                                        className="w-6 h-6 rounded hover:bg-white/20 flex items-center justify-center text-lg transition-colors"
+                                        title={`${sym.name} - Tıkla ve PDF'e yerleştir`}
+                                    >
+                                        {sym.emoji}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
 
                     <div className="h-px bg-white/10 mx-1" />
 

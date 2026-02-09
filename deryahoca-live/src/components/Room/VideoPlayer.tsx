@@ -24,30 +24,26 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     useEffect(() => {
         const videoElement = videoRef.current;
-        console.log('🎥 VideoPlayer useEffect:', {
-            hasVideoElement: !!videoElement,
-            hasStream: !!stream,
-            streamId: stream?.id,
-            streamActive: stream?.active,
-            videoTracks: stream?.getVideoTracks().length,
-            isLocal,
-            isCameraOff
-        });
+        if (!videoElement || !stream) return;
 
-        if (videoElement && stream) {
-            // Always set srcObject even if camera is "off" - the stream might still be valid
-            if (videoElement.srcObject !== stream) {
-                console.log('🎥 Setting srcObject to stream:', stream.id);
-                videoElement.srcObject = stream;
+        // Force srcObject update
+        videoElement.srcObject = stream;
+
+        // Attempt to play
+        const playVideo = async () => {
+            try {
+                await videoElement.play();
+            } catch (err) {
+                console.warn('Video autoplay failed:', err);
+                // Retry once after a short delay (helps with some mobile race conditions)
+                setTimeout(() => {
+                    videoElement.play().catch(e => console.error('Retry play failed:', e));
+                }, 1000);
             }
-            // Ensure video plays
-            videoElement.play().catch(err => {
-                if (err.name !== 'AbortError') {
-                    console.error('Error playing video:', err);
-                }
-            });
-        }
-    }, [stream, isLocal, isCameraOff]);
+        };
+
+        playVideo();
+    }, [stream]); // Re-run when stream reference changes
 
     return (
         <div className="relative w-full aspect-video bg-brand-dark rounded-xl overflow-hidden group">

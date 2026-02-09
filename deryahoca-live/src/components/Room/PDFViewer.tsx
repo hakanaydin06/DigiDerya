@@ -89,6 +89,11 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     const activeDrawingPageRef = useRef<number | null>(null);
     const lastScrollEmit = useRef(0);
 
+    // Remote drawing state
+    const remotePathsRef = useRef<Map<string, { points: Point[], color: string, lineWidth: number, isEraser: boolean, pageNum: number }>>(new Map());
+    const lastEmitRef = useRef(0);
+    const currentStrokeIdRef = useRef<string | null>(null);
+
 
     // Text Input State
     const [textInputVisible, setTextInputVisible] = useState(false);
@@ -340,12 +345,84 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                 return;
             }
 
+            // --- Real-time Drawing Handlers ---
+
+            // Path Start
+            if (data.type === 'path-start') {
+                const { id, startPoint, color, lineWidth, isEraser, pageNum } = data;
+                remotePathsRef.current.set(id, {
+                    points: [startPoint],
+                    color,
+                    lineWidth,
+                    isEraser,
+                    pageNum
+                });
+                return;
+            }
+
+            // Path Move (Throttled real-time updates)
+            if (data.type === 'path-move') {
+                const { id, point } = data;
+                const remotePath = remotePathsRef.current.get(id);
+
+                if (remotePath) {
+                    const canvas = annotationCanvasRefs.current.get(remotePath.pageNum);
+                    const ctx = canvas?.getContext('2d');
+
+                    if (canvas && ctx) {
+                        const lastPoint = remotePath.points[remotePath.points.length - 1];
+                        remotePath.points.push(point);
+
+                        // Draw immediately
+                        drawLine(
+                            ctx,
+                            lastPoint,
+                            point,
+                            remotePath.color,
+                            remotePath.lineWidth,
+                            remotePath.isEraser,
+                            canvas.width,
+                            canvas.height
+                        );
+                    }
+                }
+                return;
+            }
+
+            // Path End (Finalize)
+            if (data.type === 'path-end') {
+                const { id, fullPath, pageNum } = data; // Receive full path for consistency
+
+                // Cleanup temp path
+                remotePathsRef.current.delete(id);
+
+                // Add to history
+                const action: DrawingAction = {
+                    type: 'path',
+                    points: fullPath,
+                    color: data.color,
+                    lineWidth: data.lineWidth,
+                    isEraser: data.isEraser
+                };
+
+                setDrawingHistory(prev => ({
+                    ...prev,
+                    [pageNum]: [...(prev[pageNum] || []), action]
+                }));
+                // Note: setDrawingHistory will trigger redrawPage, which clears canvas and redraws
+                // This 'flicker' is actually good as it corrects any interpolation errors from real-time drawing
+                return;
+            }
+
+            // --- Legacy/Other Action Handlers ---
+
             // Check if it's one of our new supported types with pageNum
             if ('pageNum' in data && (data.type === 'path' || data.type === 'text' || data.type === 'symbol')) {
                 const pageNum = data.pageNum;
                 let action: DrawingAction;
 
                 if (data.type === 'path') {
+                    // Legacy path handler (full path received at once)
                     action = { type: 'path', points: data.points, color: data.color, lineWidth: data.lineWidth, isEraser: data.isEraser };
                 } else if (data.type === 'text') {
                     action = { type: 'text', text: data.text, x: data.x, y: data.y, color: data.color };
@@ -372,6 +449,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         // Handle clear
         const handleRemoteClear = () => {
             setDrawingHistory({});
+            remotePathsRef.current.clear(); // Clear remote paths too
             annotationCanvasRefs.current.forEach((canvas) => {
                 const ctx = canvas.getContext('2d');
                 if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -383,21 +461,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         on('whiteboard-clear', handleRemoteClear);
 
         return () => {
-            off('whiteboard-draw', handleRemoteDraw); // Note: off implementation might need callback reference if simple 'off(event)' is not supported
-            // Assuming 'off' takes just event name based on useSocket hook pattern usually?
-            // If useSocket.off requires callback, we need to save references.
-            // Let's assume standard emitter pattern?
-            // Actually, usually off(event, callback).
-            // I'll leave it as off('event') if that's how the hook works, OR off('event', handler).
-            // Investigating useSocket usage in Room.tsx might be needed. 
-            // For now, I'll try to use off(event, handler) to be safe.
-            // But wait, the handlers change on every render due to closure? 
-            // setDrawingHistory is stable. 
-            // I should move handlers outside or useCallbacks?
-            // Since they use setDrawingHistory (stable), they are safe? 
-            // No, handleRemoteDraw depends on nothing? 
-            // It depends on setDrawingHistory.
-            // Safe. I'll use off(event, handler).
+            off('whiteboard-draw', handleRemoteDraw);
         };
     }, [on, off]);
 
@@ -535,6 +599,23 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         lastPointRef.current = { x: normX, y: normY };
         currentPathRef.current = [{ x: normX, y: normY }];
         activeDrawingPageRef.current = pageNum;
+
+        // --- Generate Stroke ID for Real-time ---
+        currentStrokeIdRef.current = `${sessionId}-${Date.now()}`;
+
+        // Emit Path Start
+        emit?.('whiteboard-draw', {
+            sessionId,
+            event: {
+                type: 'path-start',
+                id: currentStrokeIdRef.current,
+                startPoint: { x: normX, y: normY },
+                color: currentColor,
+                lineWidth: lineWidth,
+                isEraser: isEraser,
+                pageNum
+            }
+        });
     };
 
     const handleAnnotationMove = (e: React.MouseEvent | React.TouchEvent, pageNum: number) => {
@@ -555,6 +636,20 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         drawLine(ctx, lastPointRef.current, { x: normX, y: normY }, currentColor, lineWidth, isEraser, canvas.width, canvas.height);
         lastPointRef.current = { x: normX, y: normY };
         currentPathRef.current.push({ x: normX, y: normY });
+
+        // --- Real-time Throttled Emission ---
+        const now = Date.now();
+        if (now - lastEmitRef.current > 20) { // 20ms = ~50fps
+            emit?.('whiteboard-draw', {
+                sessionId,
+                event: {
+                    type: 'path-move',
+                    id: currentStrokeIdRef.current,
+                    point: { x: normX, y: normY }
+                }
+            });
+            lastEmitRef.current = now;
+        }
     };
 
     const handleAnnotationEnd = () => {
@@ -565,6 +660,21 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
             const capturedWidth = lineWidth;
             const capturedEraser = isEraser;
 
+            // Emit Path End with Full Path (for reliability)
+            emit?.('whiteboard-draw', {
+                sessionId,
+                event: {
+                    type: 'path-end',
+                    id: currentStrokeIdRef.current,
+                    fullPath: capturedPoints,
+                    color: capturedColor,
+                    lineWidth: capturedWidth,
+                    isEraser: capturedEraser,
+                    pageNum
+                }
+            });
+
+            // Add path to history
             const action: DrawingAction = {
                 type: 'path',
                 points: capturedPoints,
@@ -573,7 +683,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                 isEraser: capturedEraser
             };
 
-            // Add path to history
             setDrawingHistory(prev => ({
                 ...prev,
                 [pageNum]: [
@@ -581,18 +690,15 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                     action
                 ]
             }));
-
-            emit?.('whiteboard-draw', {
-                sessionId,
-                event: { ...action, pageNum }
-            });
         }
 
         isDrawingRef.current = false;
         lastPointRef.current = null;
         activeDrawingPageRef.current = null;
         currentPathRef.current = [];
+        currentStrokeIdRef.current = null;
     };
+
 
     // Clear all annotation canvases when clearTrigger changes
     useEffect(() => {

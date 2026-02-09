@@ -10,6 +10,10 @@ import { PDFViewer } from './PDFViewer';
 import { Controls } from './Controls';
 import { ClassTimer } from './ClassTimer';
 import { Whiteboard } from './Whiteboard';
+import { MobileLayout } from '../Mobile/MobileLayout';
+import { RoomCanvas } from './RoomCanvas';
+import { ConfirmModal } from './ConfirmModal';
+import { useWindowSize } from '@/hooks/useWindowSize';
 import type { Participant, PDFState, WaitingStudent } from '@/types';
 
 interface RoomProps {
@@ -52,6 +56,7 @@ export const Room: React.FC<RoomProps> = ({
     const [clearTrigger, setClearTrigger] = useState(0);
     const boardContainerRef = useRef<HTMLDivElement>(null);
     const [boardSize, setBoardSize] = useState({ width: 800, height: 600 });
+    const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 
     // Lifted drawing state
     const [currentColor, setCurrentColor] = useState('#FF0000');
@@ -273,11 +278,14 @@ export const Room: React.FC<RoomProps> = ({
 
     // Clear whiteboard (Teacher only)
     const handleClearBoard = () => {
-        if (window.confirm('Bu sayfadaki tüm çizimleri silmek istediğinize emin misiniz?')) {
-            const pageIndex = pdfState ? pdfState.currentPage - 1 : 0;
-            emit('whiteboard-clear', { sessionId, pageIndex });
-            setClearTrigger(prev => prev + 1); // Trigger local clear
-        }
+        setIsClearConfirmOpen(true);
+    };
+
+    const confirmClearBoard = () => {
+        const pageIndex = pdfState ? pdfState.currentPage - 1 : 0;
+        emit('whiteboard-clear', { sessionId, pageIndex });
+        setClearTrigger(prev => prev + 1); // Trigger local clear
+        setIsClearConfirmOpen(false);
     };
 
     // Control handlers
@@ -362,6 +370,125 @@ export const Room: React.FC<RoomProps> = ({
 
     const filteredParticipants = getFilteredParticipants();
 
+    // Mobile detection
+    const { isMobile } = useWindowSize();
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+    // Common Canvas Component
+    const renderCanvas = () => (
+        <RoomCanvas
+            sessionId={sessionId}
+            isTeacher={isTeacher}
+            pdfState={pdfState}
+            drawingEnabled={drawingEnabled}
+            setDrawingEnabled={setDrawingEnabled}
+            clearTrigger={clearTrigger}
+            setClearTrigger={setClearTrigger}
+            focusMode={focusMode}
+            onToggleFocusMode={handleToggleFocusMode}
+            onClearBoard={handleClearBoard}
+            isMuted={isMuted}
+            isCameraOff={isCameraOff}
+            onToggleMute={handleToggleMute}
+            onToggleCamera={handleToggleCamera}
+            onSelectPdf={() => setShowPdfSelector(true)}
+            onLeave={handleEndSession}
+            onPageChange={handlePageChange}
+            onZoomChange={handleZoomChange}
+            currentColor={currentColor}
+            setCurrentColor={setCurrentColor}
+            lineWidth={lineWidth}
+            setLineWidth={setLineWidth}
+            isEraser={isEraser}
+            setIsEraser={setIsEraser}
+            textMode={textMode}
+            setTextMode={setTextMode}
+            selectedSymbol={selectedSymbol}
+            setSelectedSymbol={setSelectedSymbol}
+            emit={emit}
+            on={on}
+            off={off}
+        />
+    );
+
+    // Mobile Layout
+    if (isMobile) {
+        return (
+            <MobileLayout
+                localParticipant={localParticipant}
+                localStream={localStream}
+                participants={participants}
+                remoteStreams={remoteStreams}
+                pdfState={pdfState}
+                isDrawerOpen={isDrawerOpen}
+                toggleDrawer={() => setIsDrawerOpen(!isDrawerOpen)}
+            >
+                {renderCanvas()}
+
+                {/* PDF Selector Modal (Mobile) */}
+                <AnimatePresence>
+                    {showPdfSelector && isTeacher && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-brand-dark/80 backdrop-blur-md flex items-center justify-center z-[60] p-4"
+                            onClick={() => setShowPdfSelector(false)}
+                        >
+                            <motion.div
+                                initial={{ scale: 0.9, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.9, opacity: 0 }}
+                                className="glass-panel rounded-2xl p-6 max-w-md w-full max-h-[80vh] overflow-hidden border-2 border-brand-primary/30"
+                                onClick={e => e.stopPropagation()}
+                            >
+                                <h2 className="text-xl font-bold text-text-main mb-4 heading-display flex items-center gap-2">
+                                    <span>📄</span> PDF Seçin
+                                </h2>
+
+                                {availablePdfs.length === 0 ? (
+                                    <div className="text-center py-8">
+                                        <p className="text-text-muted">Henüz yüklenmiş PDF yok</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                                        {availablePdfs.map((pdf, index) => (
+                                            <button
+                                                key={index}
+                                                onClick={() => handleSelectPdf(pdf)}
+                                                className="w-full p-4 bg-brand-dark hover:bg-brand-primary/10 rounded-xl text-left transition-colors flex items-center gap-3 border border-white/5"
+                                            >
+                                                <span className="text-text-main truncate text-sm">{pdf.name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                <button
+                                    onClick={() => setShowPdfSelector(false)}
+                                    className="mt-4 w-full py-3 bg-brand-panel text-text-muted rounded-xl hover:bg-brand-panel/80 transition-colors border border-white/10"
+                                >
+                                    İptal
+                                </button>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Confirm Modal */}
+                <ConfirmModal
+                    isOpen={isClearConfirmOpen}
+                    onClose={() => setIsClearConfirmOpen(false)}
+                    onConfirm={confirmClearBoard}
+                    title="Tahtayı Temizle"
+                    description="Bu sayfadaki tüm çizimleri silmek istediğinize emin misiniz? Bu işlem geri alınamaz."
+                    confirmText="Temizle"
+                    isDestructive={true}
+                />
+            </MobileLayout>
+        );
+    }
+
+    // Desktop Layout
     return (
         <div className="h-screen science-lab-bg science-lab-gradient flex flex-col overflow-hidden">
             {/* Ambient Background Effects */}
@@ -515,70 +642,7 @@ export const Room: React.FC<RoomProps> = ({
             {/* Main Content */}
             <div className="flex-1 flex overflow-hidden p-4 gap-4 relative z-10">
                 {/* PDF/Whiteboard Area (70%) */}
-                <div className="flex-1 min-w-0 relative" ref={boardContainerRef}>
-                    <div className="h-full glass-panel rounded-2xl overflow-hidden border border-brand-accent/20">
-                        <PDFViewer
-                            pdfUrl={pdfState?.pdfUrl || null}
-                            currentPage={pdfState?.currentPage || 1}
-                            zoom={pdfState?.zoom || 100}
-                            isTeacher={isTeacher}
-                            onPageChange={handlePageChange}
-                            onZoomChange={handleZoomChange}
-                            // Annotation props
-                            sessionId={sessionId}
-                            drawingEnabled={drawingEnabled}
-                            clearTrigger={clearTrigger}
-                            currentColor={currentColor}
-                            lineWidth={lineWidth}
-                            isEraser={isEraser}
-                            textMode={textMode}
-                            selectedSymbol={selectedSymbol}
-                            onSymbolPlaced={() => setSelectedSymbol(null)}
-                            // Socket props
-                            emit={emit}
-                            on={on}
-                            off={off}
-                        />
-
-                        {/* Whiteboard Overlay - Toolbar Only */}
-                        <Whiteboard
-                            sessionId={sessionId}
-                            isTeacher={isTeacher}
-                            width={boardSize.width}
-                            height={boardSize.height}
-                            drawingEnabled={drawingEnabled}
-                            pageIndex={pdfState ? pdfState.currentPage - 1 : 0}
-                            clearTrigger={clearTrigger}
-                            focusMode={focusMode}
-                            onToggleFocusMode={handleToggleFocusMode}
-                            onToggleDrawing={() => setDrawingEnabled(!drawingEnabled)}
-                            onClearBoard={handleClearBoard}
-                            isMuted={isMuted}
-                            isCameraOff={isCameraOff}
-                            onToggleMute={handleToggleMute}
-                            onToggleCamera={handleToggleCamera}
-                            onSelectPdf={() => setShowPdfSelector(true)}
-                            onLeave={handleEndSession}
-                            // Shared State Props
-                            currentColor={currentColor}
-                            setCurrentColor={setCurrentColor}
-                            lineWidth={lineWidth}
-                            setLineWidth={setLineWidth}
-                            isEraser={isEraser}
-                            setIsEraser={setIsEraser}
-                            textMode={textMode}
-                            setTextMode={setTextMode}
-                            selectedSymbol={selectedSymbol}
-                            setSelectedSymbol={setSelectedSymbol}
-                        />
-
-                        {/* Lightboard Corner Accents */}
-                        <div className="absolute top-0 left-0 w-12 h-12 border-l-2 border-t-2 border-brand-accent/40 pointer-events-none" />
-                        <div className="absolute top-0 right-0 w-12 h-12 border-r-2 border-t-2 border-brand-accent/40 pointer-events-none" />
-                        <div className="absolute bottom-0 left-0 w-12 h-12 border-l-2 border-b-2 border-brand-accent/40 pointer-events-none" />
-                        <div className="absolute bottom-0 right-0 w-12 h-12 border-r-2 border-b-2 border-brand-accent/40 pointer-events-none" />
-                    </div>
-                </div>
+                {renderCanvas()}
 
                 {/* Video Sidebar (30%) */}
                 <div className="w-80 flex-shrink-0">
@@ -606,8 +670,6 @@ export const Room: React.FC<RoomProps> = ({
                     </div>
                 </div>
             </div>
-
-
 
             {/* PDF Selector Modal */}
             <AnimatePresence>
@@ -669,6 +731,17 @@ export const Room: React.FC<RoomProps> = ({
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Confirm Modal */}
+            <ConfirmModal
+                isOpen={isClearConfirmOpen}
+                onClose={() => setIsClearConfirmOpen(false)}
+                onConfirm={confirmClearBoard}
+                title="Tahtayı Temizle"
+                description="Bu sayfadaki tüm çizimleri silmek istediğinize emin misiniz? Bu işlem geri alınamaz."
+                confirmText="Temizle"
+                isDestructive={true}
+            />
         </div>
     );
 };

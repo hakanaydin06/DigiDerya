@@ -54,7 +54,7 @@ export default function LiveSessionPage() {
     }, [sessionId]);
 
     // Handle join from Lobby
-    const handleJoin = (name: string, stream: MediaStream) => {
+    const handleJoin = (name: string, stream: MediaStream | null) => {
         setUserName(name);
         setLocalStream(stream);
         setRoomState('room');
@@ -151,7 +151,7 @@ export default function LiveSessionPage() {
     }
 
     // Room state
-    if (roomState === 'room' && localStream) {
+    if (roomState === 'room') {
         return (
             <Room
                 sessionId={sessionId}

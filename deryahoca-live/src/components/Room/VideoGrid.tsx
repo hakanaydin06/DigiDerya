@@ -189,6 +189,16 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
                         ))}
                     </div>
                 </AnimatePresence>
+
+                {/* Empty State - Waiting for Teacher/Participants */}
+                {!teacher && !isLocalTeacher && students.length === 0 && (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-4 opacity-50">
+                        <div className="w-16 h-16 bg-brand-primary/10 rounded-full flex items-center justify-center mb-2 animate-pulse">
+                            <span className="text-3xl">📡</span>
+                        </div>
+                        <p className="text-xs text-text-muted">Bağlantı bekleniyor...</p>
+                    </div>
+                )}
             </div>
 
             {/* Connection Quality Indicator */}

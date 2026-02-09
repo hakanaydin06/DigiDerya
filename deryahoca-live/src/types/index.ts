@@ -11,7 +11,7 @@ export interface Participant extends User {
     isMuted: boolean;
     isCameraOff: boolean;
     isHandRaised: boolean;
-    stream?: MediaStream;
+    stream?: MediaStream | null;
     isApproved?: boolean;
 }
 

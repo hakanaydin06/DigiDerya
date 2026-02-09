@@ -171,5 +171,13 @@ export const useMediaDevices = (options: UseMediaDevicesOptions = { video: true,
         switchAudioDevice,
         stopStream,
         getDevices,
+        skipMedia: useCallback(() => {
+            setState(prev => ({
+                ...prev,
+                stream: null,
+                isLoading: false,
+                error: null
+            }));
+        }, []),
     };
 };

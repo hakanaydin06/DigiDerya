@@ -23,23 +23,41 @@ export const useWebRTC = (options: UseWebRTCOptions) => {
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
     const peersRef = useRef<Map<string, PeerConnection>>(new Map());
 
+    const removePeer = useCallback((targetId: string) => {
+        const peerConnection = peersRef.current.get(targetId);
+        if (peerConnection) {
+            peerConnection.peer.destroy();
+            peersRef.current.delete(targetId);
+            setPeers(new Map(peersRef.current));
+            setRemoteStreams(prev => {
+                const newMap = new Map(prev);
+                newMap.delete(targetId);
+                return newMap;
+            });
+        }
+    }, []);
+
     const createPeer = useCallback((
         targetId: string,
         initiator: boolean,
-        stream: MediaStream
+        stream: MediaStream | null
     ): SimplePeerInstance => {
         console.log(`Creating peer for ${targetId}, initiator: ${initiator}`);
 
         const peer = new Peer({
             initiator,
             trickle: true,
-            stream,
+            stream: stream || undefined,
             config: {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
                     { urls: 'stun:stun1.l.google.com:19302' },
                     { urls: 'stun:stun2.l.google.com:19302' },
                 ],
+            },
+            offerOptions: {
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
             },
         });
 
@@ -49,8 +67,8 @@ export const useWebRTC = (options: UseWebRTCOptions) => {
                 socket.emit('signal-offer', { to: targetId, offer: data });
             } else if (data.type === 'answer') {
                 socket.emit('signal-answer', { to: targetId, answer: data });
-            } else if (data.candidate) {
-                socket.emit('signal-ice-candidate', { to: targetId, candidate: data });
+            } else if ((data as any).candidate) {
+                socket.emit('signal-ice-candidate', { to: targetId, candidate: data as any });
             }
         });
 
@@ -73,14 +91,9 @@ export const useWebRTC = (options: UseWebRTCOptions) => {
         });
 
         return peer;
-    }, []);
+    }, [removePeer]);
 
     const addPeer = useCallback((targetId: string, initiator: boolean) => {
-        if (!localStream) {
-            console.warn('No local stream available');
-            return;
-        }
-
         if (peersRef.current.has(targetId)) {
             console.log(`Peer already exists for ${targetId}`);
             return;
@@ -97,25 +110,11 @@ export const useWebRTC = (options: UseWebRTCOptions) => {
         setPeers(new Map(peersRef.current));
     }, [localStream, createPeer]);
 
-    const removePeer = useCallback((targetId: string) => {
-        const peerConnection = peersRef.current.get(targetId);
-        if (peerConnection) {
-            peerConnection.peer.destroy();
-            peersRef.current.delete(targetId);
-            setPeers(new Map(peersRef.current));
-            setRemoteStreams(prev => {
-                const newMap = new Map(prev);
-                newMap.delete(targetId);
-                return newMap;
-            });
-        }
-    }, []);
-
     const handleSignal = useCallback((fromId: string, signalData: RTCSessionDescriptionInit | RTCIceCandidateInit) => {
         const peerConnection = peersRef.current.get(fromId);
         if (peerConnection) {
             try {
-                peerConnection.peer.signal(signalData);
+                peerConnection.peer.signal(signalData as any);
             } catch (err) {
                 console.error('Error signaling peer:', err);
             }
@@ -124,8 +123,6 @@ export const useWebRTC = (options: UseWebRTCOptions) => {
 
     // Set up socket listeners
     useEffect(() => {
-        if (!localStream) return;
-
         const socket = getSocket();
 
         const handleUserJoined = (data: { id: string; userName: string; isTeacher: boolean }) => {
@@ -178,7 +175,7 @@ export const useWebRTC = (options: UseWebRTCOptions) => {
             socket.off('signal-ice-candidate', handleSignalIceCandidate);
             socket.off('user-left', handleUserLeft);
         };
-    }, [localStream, addPeer, removePeer, handleSignal]);
+    }, [addPeer, removePeer, handleSignal]);
 
     // Cleanup on unmount
     useEffect(() => {

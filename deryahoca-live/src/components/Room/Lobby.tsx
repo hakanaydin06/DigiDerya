@@ -20,7 +20,7 @@ const getUserSessionId = (): string => {
 interface LobbyProps {
     sessionId: string;
     isTeacher: boolean;
-    onJoin: (userName: string, stream: MediaStream) => void;
+    onJoin: (userName: string, stream: MediaStream | null) => void;
 }
 
 export const Lobby: React.FC<LobbyProps> = ({
@@ -49,7 +49,9 @@ export const Lobby: React.FC<LobbyProps> = ({
         toggleAudio,
         toggleVideo,
         initializeStream,
+        skipMedia,
         error: mediaError,
+        isLoading,
     } = useMediaDevices();
 
     // Auto-initialize media stream on mount
@@ -77,7 +79,7 @@ export const Lobby: React.FC<LobbyProps> = ({
 
         const handleAdmissionApproved = (data: { message: string }) => {
             setWaitingForApproval(false);
-            if (stream && userName) {
+            if (userName) {
                 onJoin(userName, stream);
             }
         };
@@ -106,12 +108,14 @@ export const Lobby: React.FC<LobbyProps> = ({
 
     // Check readiness
     useEffect(() => {
-        setIsReady(!!stream && userName.trim().length >= 2);
-    }, [stream, userName]);
+        const hasMedia = !!stream;
+        const skippedMedia = !stream && !isLoading && !mediaError;
+        setIsReady((hasMedia || skippedMedia) && userName.trim().length >= 2);
+    }, [stream, userName, isLoading, mediaError]);
 
     // Handle join click
     const handleJoin = () => {
-        if (!isReady || !stream) return;
+        if (!isReady) return;
 
         if (isTeacher) {
             onJoin(userName, stream);
@@ -197,15 +201,27 @@ export const Lobby: React.FC<LobbyProps> = ({
                     transition={{ delay: 0.3 }}
                     className="relative aspect-video bg-brand-dark rounded-xl overflow-hidden mb-6 border-2 border-brand-accent/50 shadow-[0_0_25px_rgba(16,185,129,0.2)] neon-pulse"
                 >
-                    <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className={`w-full h-full object-cover ${isCameraOff ? 'hidden' : ''}`}
-                    />
+                    {stream ? (
+                        <video
+                            ref={videoRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className={`w-full h-full object-cover ${isCameraOff ? 'hidden' : ''}`}
+                        />
+                    ) : (
+                        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-dark to-brand-panel">
+                            <div className="text-center p-6">
+                                <div className="w-16 h-16 bg-brand-primary/20 rounded-full mx-auto mb-4 flex items-center justify-center border border-brand-primary/30">
+                                    <span className="text-3xl">📷</span>
+                                </div>
+                                <p className="text-text-muted font-medium">Kamera/Mikrofon Kapalı</p>
+                                <p className="text-xs text-text-muted/60 mt-2">İzleyici modunda katılacaksınız</p>
+                            </div>
+                        </div>
+                    )}
 
-                    {isCameraOff && (
+                    {stream && isCameraOff && (
                         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-dark to-brand-panel">
                             <div className="w-24 h-24 bg-brand-primary/20 rounded-full flex items-center justify-center border-2 border-brand-primary/30">
                                 <svg className="w-12 h-12 text-brand-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -221,63 +237,71 @@ export const Lobby: React.FC<LobbyProps> = ({
                     <div className="absolute bottom-0 left-0 w-8 h-8 border-l-2 border-b-2 border-brand-accent/60" />
                     <div className="absolute bottom-0 right-0 w-8 h-8 border-r-2 border-b-2 border-brand-accent/60" />
 
-                    {/* Device Controls */}
-                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-3">
-                        <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={toggleAudio}
-                            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-sm ${isMuted
-                                ? 'bg-red-500/90 shadow-[0_0_15px_rgba(239,68,68,0.5)]'
-                                : 'bg-brand-panel/80 border border-white/10 hover:border-brand-accent/50'
-                                }`}
-                        >
-                            {isMuted ? (
-                                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-                                </svg>
-                            ) : (
-                                <svg className="w-5 h-5 text-brand-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                                </svg>
-                            )}
-                        </motion.button>
+                    {/* Device Controls - Only show if stream exists */}
+                    {stream && (
+                        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-3">
+                            <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={toggleAudio}
+                                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-sm ${isMuted
+                                    ? 'bg-red-500/90 shadow-[0_0_15px_rgba(239,68,68,0.5)]'
+                                    : 'bg-brand-panel/80 border border-white/10 hover:border-brand-accent/50'
+                                    }`}
+                            >
+                                {isMuted ? (
+                                    <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                                    </svg>
+                                ) : (
+                                    <svg className="w-5 h-5 text-brand-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                                    </svg>
+                                )}
+                            </motion.button>
 
-                        <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={toggleVideo}
-                            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-sm ${isCameraOff
-                                ? 'bg-red-500/90 shadow-[0_0_15px_rgba(239,68,68,0.5)]'
-                                : 'bg-brand-panel/80 border border-white/10 hover:border-brand-accent/50'
-                                }`}
-                        >
-                            {isCameraOff ? (
-                                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                                </svg>
-                            ) : (
-                                <svg className="w-5 h-5 text-brand-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                </svg>
-                            )}
-                        </motion.button>
-                    </div>
+                            <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={toggleVideo}
+                                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 backdrop-blur-sm ${isCameraOff
+                                    ? 'bg-red-500/90 shadow-[0_0_15px_rgba(239,68,68,0.5)]'
+                                    : 'bg-brand-panel/80 border border-white/10 hover:border-brand-accent/50'
+                                    }`}
+                            >
+                                {isCameraOff ? (
+                                    <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                    </svg>
+                                ) : (
+                                    <svg className="w-5 h-5 text-brand-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                )}
+                            </motion.button>
+                        </div>
+                    )}
                 </motion.div>
 
-                {/* Error message */}
+                {/* Permissions Error / Skip Option */}
                 <AnimatePresence>
-                    {(error || mediaError) && (
+                    {(mediaError) && (
                         <motion.div
                             initial={{ opacity: 0, y: -10 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
                             className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl"
                         >
-                            <p className="text-red-400 text-sm text-center flex items-center justify-center gap-2">
-                                <span>⚠️</span> {error || mediaError}
+                            <p className="text-red-400 text-sm text-center flex items-center justify-center gap-2 mb-3">
+                                <span>⚠️</span> {mediaError}
                             </p>
+                            <button
+                                onClick={skipMedia}
+                                className="w-full py-2 bg-brand-panel text-text-main text-sm rounded-lg hover:bg-brand-panel/80 border border-white/10 transition-all"
+                            >
+                                Cihazsız Devam Et (İzleyici Modu)
+                            </button>
                         </motion.div>
                     )}
                 </AnimatePresence>

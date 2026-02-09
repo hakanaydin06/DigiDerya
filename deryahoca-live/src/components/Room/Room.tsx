@@ -16,7 +16,7 @@ interface RoomProps {
     sessionId: string;
     userName: string;
     isTeacher: boolean;
-    localStream: MediaStream;
+    localStream: MediaStream | null;
     onLeave: () => void;
 }
 
@@ -94,8 +94,8 @@ export const Room: React.FC<RoomProps> = ({
             userName,
             isTeacher,
             sessionId,
-            isMuted: false,
-            isCameraOff: false,
+            isMuted: false, // Default state, irrelevant if no stream
+            isCameraOff: !localStream, // If no stream, camera is effectively off
             isHandRaised: false,
             stream: localStream,
         });
@@ -341,7 +341,9 @@ export const Room: React.FC<RoomProps> = ({
     };
 
     const handleLeave = () => {
-        localStream.getTracks().forEach(track => track.stop());
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+        }
         onLeave();
     };
 

@@ -20,6 +20,10 @@ interface RoomCanvasProps {
     onToggleCamera: () => void;
     onSelectPdf: () => void;
     onLeave: () => void;
+    // New props for screen capture
+    onScreenshot?: () => void;
+    onScreenRecord?: () => void;
+    isRecording?: boolean;
 
     // PDF Handlers
     onPageChange: (page: number) => void;
@@ -60,6 +64,9 @@ export const RoomCanvas: React.FC<RoomCanvasProps> = ({
     onToggleCamera,
     onSelectPdf,
     onLeave,
+    onScreenshot,
+    onScreenRecord,
+    isRecording,
     onPageChange,
     onZoomChange,
     currentColor,
@@ -138,6 +145,9 @@ export const RoomCanvas: React.FC<RoomCanvasProps> = ({
                     onToggleCamera={onToggleCamera}
                     onSelectPdf={onSelectPdf}
                     onLeave={onLeave}
+                    onScreenshot={onScreenshot}
+                    onScreenRecord={onScreenRecord}
+                    isRecording={isRecording}
                     // Shared State Props
                     currentColor={currentColor}
                     setCurrentColor={setCurrentColor}

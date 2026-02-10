@@ -11,6 +11,8 @@ declare global {
         pdfState: null;
         maxParticipants: number;
     }>;
+    var publicUrl: string;
+    var serverPublicIP: string;
 }
 
 export async function POST(request: Request) {
@@ -42,14 +44,16 @@ export async function POST(request: Request) {
             global.sessions.set(sessionId, session);
         }
 
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+        const baseUrl = global.publicUrl || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
         const sessionUrl = `${baseUrl}/live/${sessionId}`;
+        const tunnelPassword = global.serverPublicIP || '';
 
         return NextResponse.json({
             success: true,
             data: {
                 sessionId,
                 sessionUrl,
+                tunnelPassword,
                 session,
             },
         });

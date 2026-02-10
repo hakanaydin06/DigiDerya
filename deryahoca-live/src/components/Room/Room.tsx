@@ -12,6 +12,7 @@ import { ClassTimer } from './ClassTimer';
 import { Whiteboard } from './Whiteboard';
 import { MobileLayout } from '../Mobile/MobileLayout';
 import { RoomCanvas } from './RoomCanvas';
+import { ChatPanel } from './ChatPanel';
 import { ConfirmModal } from './ConfirmModal';
 import { useWindowSize } from '@/hooks/useWindowSize';
 import type { Participant, PDFState, WaitingStudent } from '@/types';
@@ -49,6 +50,11 @@ export const Room: React.FC<RoomProps> = ({
     const [isCameraOff, setIsCameraOff] = useState(false);
     const [isHandRaised, setIsHandRaised] = useState(false);
 
+    // Screen Recording & Screenshot State
+    const [isRecording, setIsRecording] = useState(false);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const chunksRef = useRef<Blob[]>([]);
+
     // New features state
     const [waitingStudents, setWaitingStudents] = useState<WaitingStudent[]>([]);
     const [focusMode, setFocusMode] = useState(false);
@@ -64,6 +70,53 @@ export const Room: React.FC<RoomProps> = ({
     const [isEraser, setIsEraser] = useState(false);
     const [textMode, setTextMode] = useState(false);
     const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
+
+    // Chat State
+    const [showChat, setShowChat] = useState(false);
+    const [chatMessages, setChatMessages] = useState<any[]>([]);
+
+    useEffect(() => {
+        const socket = getSocket();
+        if (!socket) return;
+
+        const handleChatMessage = (message: any) => {
+            setChatMessages(prev => [...prev, message]);
+        };
+
+        const handleChatHistory = (history: any[]) => {
+            setChatMessages(history);
+        };
+
+        const handleChatClear = () => {
+            setChatMessages([]);
+        };
+
+        // Cast to any to avoid strict type checking for now
+        (socket as any).on('chat-message', handleChatMessage);
+        (socket as any).on('chat-history', handleChatHistory);
+        (socket as any).on('chat-clear', handleChatClear);
+
+        return () => {
+            (socket as any).off('chat-message', handleChatMessage);
+            (socket as any).off('chat-history', handleChatHistory);
+            (socket as any).off('chat-clear', handleChatClear);
+        };
+    }, []);
+
+    // Chat Handlers
+    const handleSendMessage = (text: string) => {
+        const socket = getSocket();
+        if (socket) {
+            (socket as any).emit('chat-message', { text });
+        }
+    };
+
+    const handleClearChat = () => {
+        const socket = getSocket();
+        if (socket && isTeacher) {
+            (socket as any).emit('chat-clear', { sessionId });
+        }
+    };
 
     // Update board size
     useEffect(() => {
@@ -288,6 +341,118 @@ export const Room: React.FC<RoomProps> = ({
         setIsClearConfirmOpen(false);
     };
 
+    // Screenshot Handler
+    const handleScreenshot = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({
+                video: {
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                },
+                audio: false
+            });
+
+            const track = stream.getVideoTracks()[0];
+            const imageCapture = new (window as any).ImageCapture(track);
+
+            // Wait a bit for the stream to stabilize
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            const bitmap = await imageCapture.grabFrame();
+
+            // Create canvas to draw frame
+            const canvas = document.createElement('canvas');
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(bitmap, 0, 0);
+
+            // Convert to blob and download
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `deryahoca-screenshot-${new Date().toISOString()}.png`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                }
+            }, 'image/png');
+
+            // Stop sharing
+            track.stop();
+        } catch (err) {
+            console.error('Screenshot error:', err);
+        }
+    };
+
+    // Screen Recording Handler
+    const handleScreenRecord = async () => {
+        if (isRecording) {
+            // Stop recording
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                mediaRecorderRef.current.stop();
+                setIsRecording(false);
+            }
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({
+                video: {
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    displaySurface: 'monitor',
+                },
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                }
+            });
+
+            const mediaRecorder = new MediaRecorder(stream, {
+                mimeType: 'video/webm;codecs=vp9'
+            });
+
+            mediaRecorderRef.current = mediaRecorder;
+            chunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    chunksRef.current.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `deryahoca-kayit-${new Date().toISOString()}.webm`;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                // Stop all tracks
+                stream.getTracks().forEach(track => track.stop());
+                setIsRecording(false);
+            };
+
+            // Handle user stopping via browser UI
+            stream.getVideoTracks()[0].onended = () => {
+                if (mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                }
+            };
+
+            mediaRecorder.start(1000); // Collect chunks every second
+            setIsRecording(true);
+
+        } catch (err) {
+            console.error('Screen recording error:', err);
+            setIsRecording(false);
+        }
+    };
+
     // Control handlers
     const handleToggleMute = () => {
         if (localStream) {
@@ -393,6 +558,9 @@ export const Room: React.FC<RoomProps> = ({
             onToggleCamera={handleToggleCamera}
             onSelectPdf={() => setShowPdfSelector(true)}
             onLeave={handleEndSession}
+            onScreenshot={handleScreenshot}
+            onScreenRecord={handleScreenRecord}
+            isRecording={isRecording}
             onPageChange={handlePageChange}
             onZoomChange={handleZoomChange}
             currentColor={currentColor}
@@ -539,7 +707,28 @@ export const Room: React.FC<RoomProps> = ({
                                 onLeave={handleLeave}
                                 onSelectPdf={() => setShowPdfSelector(true)}
                                 onEndSession={handleEndSession}
+                                onScreenshot={handleScreenshot}
+                                onScreenRecord={handleScreenRecord}
+                                isRecording={isRecording}
+                                onChatToggle={() => setShowChat(!showChat)}
+                                showChat={showChat}
                             />
+                        </div>
+                    )}
+
+                    {/* Chat Toggle (Teacher) */}
+                    {isTeacher && (
+                        <div className="flex items-center gap-2 mr-2 border-r border-white/10 pr-4">
+                            <button
+                                onClick={() => setShowChat(!showChat)}
+                                className={`p-2 rounded-lg transition-all relative ${showChat ? 'bg-brand-primary text-white' : 'text-text-muted hover:bg-white/10'}`}
+                                title="Sohbet"
+                            >
+                                <span className="text-xl">💬</span>
+                                {chatMessages.length > 0 && !showChat && (
+                                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                                )}
+                            </button>
                         </div>
                     )}
 
@@ -669,6 +858,18 @@ export const Room: React.FC<RoomProps> = ({
                         )}
                     </div>
                 </div>
+
+                {/* Chat Panel */}
+                <ChatPanel
+                    messages={chatMessages}
+                    onSendMessage={handleSendMessage}
+                    onClearChat={handleClearChat}
+                    currentUserId={localParticipant?.id || ''}
+                    isTeacher={isTeacher}
+                    isOpen={showChat}
+                    onClose={() => setShowChat(false)}
+                />
+
             </div>
 
             {/* PDF Selector Modal */}

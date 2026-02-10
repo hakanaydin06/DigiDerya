@@ -24,6 +24,10 @@ interface WhiteboardProps {
     onToggleCamera: () => void;
     onSelectPdf: () => void;
     onLeave: () => void;
+    // New props for screen capture
+    onScreenshot?: () => void;
+    onScreenRecord?: () => void;
+    isRecording?: boolean;
     // Shared State Props
     currentColor: string;
     setCurrentColor: (color: string) => void;
@@ -55,6 +59,9 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
     onToggleCamera,
     onSelectPdf,
     onLeave,
+    onScreenshot,
+    onScreenRecord,
+    isRecording = false,
     // Shared State Props
     currentColor,
     setCurrentColor,
@@ -180,6 +187,35 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({
                         title="PDF Seç"
                     >
                         <span className="text-sm">📄</span>
+                    </button>
+
+                    <div className="h-px bg-white/10 mx-1" />
+
+                    {/* Screenshot & Record */}
+                    <button
+                        onClick={onScreenshot}
+                        className="w-9 h-9 rounded-lg bg-brand-dark/60 text-brand-primary hover:bg-brand-dark/80 flex items-center justify-center transition-all"
+                        title="Ekran Görüntüsü Al"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </button>
+
+                    <button
+                        onClick={onScreenRecord}
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${isRecording
+                            ? 'bg-red-500/20 text-red-500 border border-red-500 shadow-[0_0_8px_rgba(239,68,68,0.3)] animate-pulse'
+                            : 'bg-brand-dark/60 text-brand-primary hover:bg-brand-dark/80'
+                            }`}
+                        title={isRecording ? 'Kaydı Durdur' : 'Ekran Kaydı Başlat'}
+                    >
+                        {isRecording ? (
+                            <div className="w-3 h-3 bg-red-500 rounded-sm" />
+                        ) : (
+                            <div className="w-3 h-3 bg-current rounded-full" />
+                        )}
                     </button>
 
                     <div className="h-px bg-white/10 mx-1" />

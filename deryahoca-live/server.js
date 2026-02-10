@@ -2,6 +2,8 @@ const { createServer } = require('http');
 const { parse } = require('url');
 const next = require('next');
 const { Server } = require('socket.io');
+const fs = require('fs/promises');
+const path = require('path');
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -15,7 +17,52 @@ const sessions = new Map();
 const participants = new Map();
 const waitingRoom = new Map(); // Waiting room for students
 
-app.prepare().then(() => {
+// Chat Persistence Config
+const CHAT_FILE = path.join(__dirname, 'chat-messages.json');
+const CHAT_RETENTION_DAYS = 7;
+let chatMessages = [];
+
+// Load chat history on startup
+async function loadChatHistory() {
+  try {
+    const data = await fs.readFile(CHAT_FILE, 'utf8');
+    chatMessages = JSON.parse(data);
+
+    // Cleanup old messages on startup
+    const now = new Date();
+    const cleanMessages = chatMessages.filter(msg => {
+      const msgDate = new Date(msg.timestamp);
+      const diffTime = Math.abs(now - msgDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= CHAT_RETENTION_DAYS;
+    });
+
+    if (cleanMessages.length !== chatMessages.length) {
+      chatMessages = cleanMessages;
+      await saveChatHistory();
+      console.log(`🧹 Cleaned up ${chatMessages.length - cleanMessages.length} old chat messages`);
+    }
+
+    console.log(`💬 Loaded ${chatMessages.length} chat messages`);
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      console.error('Error loading chat history:', err);
+    } else {
+      console.log('📝 No existing chat history found, starting fresh.');
+    }
+  }
+}
+
+async function saveChatHistory() {
+  try {
+    await fs.writeFile(CHAT_FILE, JSON.stringify(chatMessages, null, 2));
+  } catch (err) {
+    console.error('Error saving chat history:', err);
+  }
+}
+
+app.prepare().then(async () => {
+  await loadChatHistory();
   const httpServer = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url, true);
@@ -140,6 +187,9 @@ app.prepare().then(() => {
         if (session && session.whiteboardStrokes && session.whiteboardStrokes.length > 0) {
           socket.emit('whiteboard-sync', session.whiteboardStrokes);
         }
+
+        // Sync Chat History
+        socket.emit('chat-history', chatMessages);
       } else {
         // Students go to waiting room first
         const waitingStudent = {
@@ -234,6 +284,9 @@ app.prepare().then(() => {
         if (session && session.whiteboardStrokes && session.whiteboardStrokes.length > 0) {
           studentSocket.emit('whiteboard-sync', session.whiteboardStrokes);
         }
+
+        // Sync Chat History
+        studentSocket.emit('chat-history', chatMessages);
       }
 
       // Notify EVERYONE (including teacher) about the new participant
@@ -264,6 +317,41 @@ app.prepare().then(() => {
         });
         studentSocket.disconnect();
       }
+    });
+
+    // Chat Message Event
+    socket.on('chat-message', async (messageData) => {
+      const participant = participants.get(socket.id);
+      if (!participant) return;
+
+      const newMessage = {
+        id: Date.now().toString(),
+        userId: socket.id,
+        userName: participant.userName,
+        isTeacher: participant.isTeacher,
+        text: messageData.text,
+        timestamp: new Date().toISOString(),
+      };
+
+      chatMessages.push(newMessage);
+
+      // Broadcast to everyone in the room
+      io.to(participant.sessionId).emit('chat-message', newMessage);
+
+      // Save async
+      await saveChatHistory();
+    });
+
+    // Clear Chat Event (Teacher Only)
+    socket.on('chat-clear', async ({ sessionId }) => {
+      const participant = participants.get(socket.id);
+      if (!participant || !participant.isTeacher) return;
+
+      console.log(`🧹 Chat cleared by ${participant.userName}`);
+      chatMessages = [];
+      await saveChatHistory();
+
+      io.to(sessionId).emit('chat-clear');
     });
 
     // Focus Mode toggle (Teacher only)
@@ -486,6 +574,9 @@ app.prepare().then(() => {
           socket.emit('whiteboard-sync', session.whiteboardStrokes);
         }
       }
+
+      // Sync Chat History
+      socket.emit('chat-history', chatMessages);
     });
 
     // Reconnection handling
@@ -512,15 +603,60 @@ app.prepare().then(() => {
         userName,
         isTeacher
       });
+
+      // Sync Chat History
+      socket.emit('chat-history', chatMessages);
     });
   });
+
+  // Import localtunnel
+  const localtunnel = require('localtunnel');
+
+  // ... (existing code) ...
 
   httpServer
     .once('error', (err) => {
       console.error(err);
       process.exit(1);
     })
-    .listen(port, () => {
+    .listen(port, async () => {
       console.log(`🚀 DeryaHoca Live running at http://${hostname}:${port}`);
+
+      // Start Tunneling with Custom Logic
+      try {
+        // Fetch Public IP first
+        const ipResponse = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipResponse.json();
+        const publicIP = ipData.ip;
+        global.serverPublicIP = publicIP;
+
+        const preferredSubdomain = 'deryahoca-yaninda';
+        let tunnel = await localtunnel({ port: port, subdomain: preferredSubdomain });
+
+        // Verify we got the preferred subdomain (localtunnel might assign random if taken)
+        if (!tunnel.url.includes(preferredSubdomain)) {
+          console.log(`⚠️ '${preferredSubdomain}' is busy, trying with random suffix...`);
+          tunnel.close();
+          const randomSuffix = Math.floor(Math.random() * 10000);
+          const fallbackSubdomain = `${preferredSubdomain}-${randomSuffix}`;
+          tunnel = await localtunnel({ port: port, subdomain: fallbackSubdomain });
+        }
+
+        console.log(`🌍 Public Shareable URL: ${tunnel.url}`);
+        console.log(`🔑 Tunnel Password (Öğrenciye verin): ${publicIP}`);
+        console.log(`📝 Öğrenci ilk girişte bu şifreyi girecek.`);
+
+        // Set global variable for API routes
+        global.publicUrl = tunnel.url;
+
+        // Also update process.env for good measure
+        process.env.NEXT_PUBLIC_BASE_URL = tunnel.url;
+
+        tunnel.on('close', () => {
+          console.log('Authors: Tunnel closed');
+        });
+      } catch (err) {
+        console.error('Tunnel generation failed:', err);
+      }
     });
 });

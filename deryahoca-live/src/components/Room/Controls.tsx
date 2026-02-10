@@ -14,6 +14,13 @@ interface ControlsProps {
     onLeave: () => void;
     onSelectPdf?: () => void;
     onEndSession?: () => void;
+    // New props for screen capture
+    onScreenshot?: () => void;
+    onScreenRecord?: () => void;
+    isRecording?: boolean;
+    // Chat props
+    onChatToggle?: () => void;
+    showChat?: boolean;
 }
 
 export const Controls: React.FC<ControlsProps> = ({
@@ -27,6 +34,11 @@ export const Controls: React.FC<ControlsProps> = ({
     onLeave,
     onSelectPdf,
     onEndSession,
+    onScreenshot,
+    onScreenRecord,
+    isRecording = false,
+    onChatToggle,
+    showChat,
 }) => {
     // Confirm before leaving
     const handleLeaveClick = () => {
@@ -116,12 +128,58 @@ export const Controls: React.FC<ControlsProps> = ({
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={onSelectPdf}
-                        className="px-4 py-2.5 bg-brand-accent/20 text-brand-accent border border-brand-accent/30 rounded-xl font-medium text-sm hover:bg-brand-accent/30 transition-all flex items-center gap-2"
+                        className="w-12 h-12 rounded-full bg-brand-panel/80 flex items-center justify-center transition-all border border-white/10 hover:border-brand-accent/50 text-brand-accent tooltip-trigger"
                         title="PDF Seç"
                     >
-                        📄 PDF Seç
+                        <span className="text-xl">📄</span>
+                    </motion.button>
+
+                    {/* Screenshot Button */}
+                    <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={onScreenshot}
+                        className="w-12 h-12 rounded-full bg-brand-panel/80 flex items-center justify-center transition-all border border-white/10 hover:border-brand-primary/50 text-brand-primary"
+                        title="Ekran Görüntüsü Al"
+                    >
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </motion.button>
+
+                    {/* Screen Record Button */}
+                    <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={onScreenRecord}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all border ${isRecording
+                            ? 'bg-red-500/20 border-red-500 text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse'
+                            : 'bg-brand-panel/80 border-white/10 hover:border-brand-primary/50 text-brand-primary'
+                            }`}
+                        title={isRecording ? 'Kaydı Durdur' : 'Ekran Kaydı Başlat'}
+                    >
+                        {isRecording ? (
+                            <div className="w-5 h-5 bg-red-500 rounded-sm" />
+                        ) : (
+                            <div className="w-5 h-5 bg-current rounded-full" />
+                        )}
                     </motion.button>
                 </>
+            )}
+
+            {/* Chat Toggle (Student) */}
+            {onChatToggle && (
+                <button
+                    onClick={onChatToggle}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${showChat
+                        ? 'bg-brand-primary text-white shadow-glow-primary'
+                        : 'bg-brand-panel/80 border border-white/10 hover:border-brand-accent/50 text-text-muted'
+                        }`}
+                    title={showChat ? "Sohbeti Gizle" : "Sohbeti Göster"}
+                >
+                    <span className="text-xl">💬</span>
+                </button>
             )}
 
             {/* Leave / End Session button */}

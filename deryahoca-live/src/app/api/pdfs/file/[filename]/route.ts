@@ -37,6 +37,9 @@ export async function GET(
                 'Content-Type': 'application/pdf',
                 'Content-Disposition': `inline; filename="${encodeURIComponent(matchingFile)}"`,
                 'Cache-Control': 'public, max-age=31536000',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type',
             },
         });
     } catch (error) {
@@ -46,4 +49,15 @@ export async function GET(
             { status: 404 }
         );
     }
+}
+
+// Handle CORS preflight requests
+export async function OPTIONS() {
+    return new NextResponse(null, {
+        headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
+        },
+    });
 }

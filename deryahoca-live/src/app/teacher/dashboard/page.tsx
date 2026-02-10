@@ -9,7 +9,6 @@ import { copyToClipboard } from '@/lib/utils/sessionUtils';
 interface Session {
     id: string;
     sessionUrl: string;
-    tunnelPassword?: string;
     createdAt: string;
 }
 
@@ -54,7 +53,6 @@ export default function TeacherDashboardPage() {
                 const newSession: Session = {
                     id: data.data.sessionId,
                     sessionUrl: data.data.sessionUrl,
-                    tunnelPassword: data.data.tunnelPassword,
                     createdAt: new Date().toISOString(),
                 };
                 setSessions(prev => [newSession, ...prev]);
@@ -215,31 +213,6 @@ export default function TeacherDashboardPage() {
                                                     </p>
                                                 </div>
                                             </div>
-                                            {session.tunnelPassword && (
-                                                <div className="mb-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                                                    <p className="text-yellow-200 text-xs font-semibold mb-2 flex items-center gap-2">
-                                                        <span>🔐</span>
-                                                        <span>Tünel Şifresi (Öğrenciye Verin)</span>
-                                                    </p>
-                                                    <div className="flex items-center gap-2">
-                                                        <input
-                                                            type="text"
-                                                            value={session.tunnelPassword}
-                                                            readOnly
-                                                            className="flex-1 p-2 bg-dark-400 text-yellow-100 text-sm font-mono rounded-lg border border-yellow-500/20"
-                                                        />
-                                                        <button
-                                                            onClick={() => copyToClipboard(session.tunnelPassword!)}
-                                                            className="px-3 py-2 bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30 rounded-lg transition-colors text-xs"
-                                                        >
-                                                            Kopyala
-                                                        </button>
-                                                    </div>
-                                                    <p className="text-[10px] text-yellow-200/60 mt-2">
-                                                        ⚠️ Öğrenci ilk kez linke girdiğinde bu şifreyi soracak.
-                                                    </p>
-                                                </div>
-                                            )}
 
                                             <div className="flex gap-3">
                                                 <button

@@ -621,42 +621,5 @@ app.prepare().then(async () => {
     })
     .listen(port, async () => {
       console.log(`🚀 DeryaHoca Live running at http://${hostname}:${port}`);
-
-      // Start Tunneling with Custom Logic
-      try {
-        // Fetch Public IP first
-        const ipResponse = await fetch('https://api.ipify.org?format=json');
-        const ipData = await ipResponse.json();
-        const publicIP = ipData.ip;
-        global.serverPublicIP = publicIP;
-
-        const preferredSubdomain = 'deryahoca-yaninda';
-        let tunnel = await localtunnel({ port: port, subdomain: preferredSubdomain });
-
-        // Verify we got the preferred subdomain (localtunnel might assign random if taken)
-        if (!tunnel.url.includes(preferredSubdomain)) {
-          console.log(`⚠️ '${preferredSubdomain}' is busy, trying with random suffix...`);
-          tunnel.close();
-          const randomSuffix = Math.floor(Math.random() * 10000);
-          const fallbackSubdomain = `${preferredSubdomain}-${randomSuffix}`;
-          tunnel = await localtunnel({ port: port, subdomain: fallbackSubdomain });
-        }
-
-        console.log(`🌍 Public Shareable URL: ${tunnel.url}`);
-        console.log(`🔑 Tunnel Password (Öğrenciye verin): ${publicIP}`);
-        console.log(`📝 Öğrenci ilk girişte bu şifreyi girecek.`);
-
-        // Set global variable for API routes
-        global.publicUrl = tunnel.url;
-
-        // Also update process.env for good measure
-        process.env.NEXT_PUBLIC_BASE_URL = tunnel.url;
-
-        tunnel.on('close', () => {
-          console.log('Authors: Tunnel closed');
-        });
-      } catch (err) {
-        console.error('Tunnel generation failed:', err);
-      }
     });
 });

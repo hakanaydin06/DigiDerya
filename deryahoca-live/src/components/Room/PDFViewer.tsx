@@ -91,7 +91,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     const currentPathRef = useRef<Point[]>([]);
     const activeDrawingPageRef = useRef<number | null>(null);
     const lastScrollEmit = useRef(0);
-    const ignoreScrollUntilRef = useRef(0);
 
     // Remote drawing state
     const remotePathsRef = useRef<Map<string, { points: Point[], color: string, lineWidth: number, isEraser: boolean, pageNum: number }>>(new Map());
@@ -113,11 +112,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         }
     }, [textInputVisible]);
 
-
-    // Sync local zoom with prop
-    useEffect(() => {
-        setLocalZoom(zoom);
-    }, [zoom]);
 
     // Load PDF document
     useEffect(() => {
@@ -150,119 +144,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         };
     }, [pdfUrl]);
 
-    // Progressive rendering refs
-    const renderIdRef = useRef<number>(0);
-    const currentPageRef = useRef(currentPage);
-
-    useEffect(() => {
-        currentPageRef.current = currentPage;
-    }, [currentPage]);
-
-    // Render all pages when PDF loads or zoom changes
-    const renderAllPages = useCallback(async () => {
-        if (!pdfDoc || !containerRef.current) return;
-
-        const currentRenderId = ++renderIdRef.current;
-        // Lock scroll handler for the entire duration of this re-render
-        // This MUST happen before any async work so no scroll slips through
-        ignoreScrollUntilRef.current = Date.now() + 3000;
-
-        const scale = localZoom / 100;
-        const pageNums = Array.from({ length: pdfDoc.numPages }, (_, i) => i + 1);
-
-        // Capture the page we want to stay on BEFORE any DOM changes
-        const cPage = currentPageRef.current;
-        const currentIndex = pageNums.indexOf(cPage);
-        if (currentIndex > -1) {
-            pageNums.splice(currentIndex, 1);
-            pageNums.unshift(cPage);
-        }
-
-        const newPages: PageCanvas[] = [];
-        let didScrollToCurrentPage = false;
-
-        for (const pageNum of pageNums) {
-            if (currentRenderId !== renderIdRef.current) return;
-
-            try {
-                await new Promise(r => setTimeout(r, 0));
-                if (currentRenderId !== renderIdRef.current) return;
-
-                const page = await pdfDoc.getPage(pageNum);
-                const viewport = page.getViewport({ scale });
-
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
-                if (!context) continue;
-
-                canvas.width = viewport.width;
-                canvas.height = viewport.height;
-
-                await page.render({ canvasContext: context, viewport }).promise;
-
-                if (currentRenderId !== renderIdRef.current) return;
-
-                newPages.push({ pageNum, canvas, dataUrl: canvas.toDataURL() });
-                setRenderedPages([...newPages].sort((a, b) => a.pageNum - b.pageNum));
-
-                // Once the target page is rendered, scroll to it immediately
-                if (!didScrollToCurrentPage && pageNum === cPage) {
-                    didScrollToCurrentPage = true;
-                    setTimeout(() => {
-                        if (currentRenderId !== renderIdRef.current) return;
-                        const container = pagesContainerRef.current;
-                        const el = container?.querySelector(`[data-page="${cPage}"]`) as HTMLElement | null;
-                        if (el && container) {
-                            ignoreScrollUntilRef.current = Date.now() + 1500;
-                            el.scrollIntoView({ behavior: 'instant', block: 'center' });
-                        }
-                    }, 80);
-                }
-            } catch (err) {
-                console.error(`Error rendering page ${pageNum}:`, err);
-            }
-        }
-        // Release scroll lock after rendering is complete
-        ignoreScrollUntilRef.current = Date.now() + 500;
-    }, [pdfDoc, localZoom]);
-
-    useEffect(() => {
-        renderAllPages();
-    }, [renderAllPages]);
-
-    // Handle wheel zoom
-    const handleWheel = useCallback((e: WheelEvent) => {
-        if (!isTeacher) return;
-        if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            const delta = e.deltaY > 0 ? -10 : 10;
-            const newZoom = Math.max(30, Math.min(300, localZoom + delta));
-            // Lock scroll handler so the re-render doesn't reset current page
-            ignoreScrollUntilRef.current = Date.now() + 3000;
-            setLocalZoom(newZoom);
-            onZoomChange?.(newZoom);
-        }
-    }, [isTeacher, localZoom, onZoomChange]);
-
-    useEffect(() => {
-        const container = containerRef.current;
-        if (!container) return;
-
-        container.addEventListener('wheel', handleWheel, { passive: false });
-        return () => container.removeEventListener('wheel', handleWheel);
-    }, [handleWheel]);
-
-    // Scroll to current page when page changes externally (e.g. from teacher sync)
-    useEffect(() => {
-        if (!pagesContainerRef.current) return;
-        // Only scroll on external currentPage prop changes, not zoom-triggered ones
-        if (Date.now() < ignoreScrollUntilRef.current) return;
-        const pageElement = pagesContainerRef.current.querySelector(`[data-page="${currentPage}"]`);
-        if (pageElement) {
-            ignoreScrollUntilRef.current = Date.now() + 600;
-            pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    }, [currentPage]);
 
     // Handle page navigation (teacher only)
     const goToPage = (page: number) => {
@@ -271,14 +152,58 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         onPageChange?.(newPage);
     };
 
-    const handleZoomButton = (delta: number) => {
-        if (!isTeacher) return;
-        const newZoom = Math.max(30, Math.min(300, localZoom + delta));
-        // Lock scroll handler so the re-render doesn't reset current page
-        ignoreScrollUntilRef.current = Date.now() + 3000;
-        setLocalZoom(newZoom);
-        onZoomChange?.(newZoom);
-    };
+    // Render all pages at fit-to-width scale (no zoom)
+    const renderIdRef = useRef<number>(0);
+    const currentPageRef = useRef(currentPage);
+    useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
+
+
+    const renderAllPages = useCallback(async () => {
+        if (!pdfDoc || !pagesContainerRef.current) return;
+        const currentRenderId = ++renderIdRef.current;
+        const containerWidth = pagesContainerRef.current.clientWidth - 32; // subtract padding
+        if (containerWidth <= 0) return;
+
+        // Compute scale based on first page width to fill the container
+        const firstPage = await pdfDoc.getPage(1);
+        const baseViewport = firstPage.getViewport({ scale: 1 });
+        const scale = containerWidth / baseViewport.width;
+
+        const pageNums = Array.from({ length: pdfDoc.numPages }, (_, i) => i + 1);
+        const newPages: PageCanvas[] = [];
+
+        for (const pageNum of pageNums) {
+            if (currentRenderId !== renderIdRef.current) return;
+            try {
+                await new Promise(r => setTimeout(r, 0));
+                if (currentRenderId !== renderIdRef.current) return;
+
+                const page = await pdfDoc.getPage(pageNum);
+                const viewport = page.getViewport({ scale });
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                if (!context) continue;
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                await page.render({ canvasContext: context, viewport }).promise;
+                if (currentRenderId !== renderIdRef.current) return;
+
+                newPages.push({ pageNum, canvas, dataUrl: canvas.toDataURL() });
+                setRenderedPages([...newPages].sort((a, b) => a.pageNum - b.pageNum));
+            } catch (err) {
+                console.error(`Error rendering page ${pageNum}:`, err);
+            }
+        }
+    }, [pdfDoc]);
+
+    useEffect(() => { renderAllPages(); }, [renderAllPages]);
+
+    // Scroll to current page when page changes (e.g. teacher sync)
+    useEffect(() => {
+        if (!pagesContainerRef.current) return;
+        const el = pagesContainerRef.current.querySelector(`[data-page="${currentPage}"]`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, [currentPage]);
 
     // Drawing helper functions for annotations
     const getDrawContext = (pageNum: number) => {
@@ -681,14 +606,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     const handleAnnotationStart = (e: React.MouseEvent | React.TouchEvent, pageNum: number) => {
         if (!isTeacher) return;
 
-        if (localZoom < 100) {
-            ignoreScrollUntilRef.current = Date.now() + 1000; // Ignore scroll updates for 1s during layout reflow
-            setLocalZoom(100);
-            onZoomChange?.(100);
-            onPageChange?.(pageNum);
-            return;
-        }
-
         // Prevent default touch actions (scrolling) if drawing
         if (drawingEnabled && 'touches' in e) {
             // e.preventDefault(); // Can't prevent default on passive listener? React handles this.
@@ -875,10 +792,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     // Scroll Handler (Teacher Only)
     const handleScroll = () => {
         if (!pagesContainerRef.current || !isTeacher) return;
-
         const now = Date.now();
-        if (now < ignoreScrollUntilRef.current) return; // Block scroll calculations during a forced thumbnail zoom
-        if (now - lastScrollEmit.current < 50) return; // 50ms throttle (20fps)
+        if (now - lastScrollEmit.current < 50) return; // 50ms throttle
 
         const container = pagesContainerRef.current;
         const { scrollTop, scrollLeft, scrollHeight, clientHeight, scrollWidth, clientWidth } = container;
@@ -956,47 +871,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                         </button>
                     </div>
 
-                    {/* Zoom controls with slider */}
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => handleZoomButton(-20)}
-                            disabled={localZoom <= 30}
-                            className="p-2 rounded-lg bg-secondary-500/20 text-secondary-300 hover:bg-secondary-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                            </svg>
-                        </button>
-
-                        <input
-                            type="range"
-                            min="30"
-                            max="300"
-                            value={localZoom}
-                            onChange={(e) => {
-                                const newZoom = Number(e.target.value);
-                                setLocalZoom(newZoom);
-                                onZoomChange?.(newZoom);
-                            }}
-                            className="w-24 h-2 accent-brand-accent cursor-pointer"
-                        />
-
-                        <span className="text-white font-medium min-w-16 text-center">
-                            %{localZoom}
-                        </span>
-
-                        <button
-                            onClick={() => handleZoomButton(20)}
-                            disabled={localZoom >= 300}
-                            className="p-2 rounded-lg bg-secondary-500/20 text-secondary-300 hover:bg-secondary-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                        </button>
-
-                        <span className="text-xs text-gray-400 ml-2">(Ctrl + Scroll)</span>
-                    </div>
                 </motion.div>
             )}
 

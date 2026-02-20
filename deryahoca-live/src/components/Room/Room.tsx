@@ -92,12 +92,20 @@ export const Room: React.FC<RoomProps> = ({
             setChatMessages([]);
         };
 
+        // Debug: Log all incoming events
+        (socket as any).onAny((event: any, ...args: any[]) => {
+            if (event.includes('whiteboard') || event.includes('draw')) {
+                console.log(`📡 [Socket Debug] ${event}:`, args);
+            }
+        });
+
         // Cast to any to avoid strict type checking for now
         (socket as any).on('chat-message', handleChatMessage);
         (socket as any).on('chat-history', handleChatHistory);
         (socket as any).on('chat-clear', handleChatClear);
 
         return () => {
+            (socket as any).offAny();
             (socket as any).off('chat-message', handleChatMessage);
             (socket as any).off('chat-history', handleChatHistory);
             (socket as any).off('chat-clear', handleChatClear);

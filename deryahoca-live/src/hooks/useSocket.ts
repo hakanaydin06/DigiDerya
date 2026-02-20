@@ -109,9 +109,10 @@ export const useSocket = (options: UseSocketOptions) => {
         event: K,
         data: Parameters<ClientToServerEvents[K]>[0]
     ) => {
-        if (socketRef.current) {
+        const socket = getSocket();
+        if (socket) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (socketRef.current as any).emit(event, data);
+            (socket as any).emit(event, data);
         }
     }, []);
 
@@ -119,8 +120,9 @@ export const useSocket = (options: UseSocketOptions) => {
         event: K,
         handler: ServerToClientEvents[K]
     ) => {
-        if (socketRef.current) {
-            socketRef.current.on(event, handler as never);
+        const socket = getSocket();
+        if (socket) {
+            socket.on(event, handler as never);
         }
     }, []);
 
@@ -128,11 +130,12 @@ export const useSocket = (options: UseSocketOptions) => {
         event: K,
         handler?: ServerToClientEvents[K]
     ) => {
-        if (socketRef.current) {
+        const socket = getSocket();
+        if (socket) {
             if (handler) {
-                socketRef.current.off(event, handler as never);
+                socket.off(event, handler as never);
             } else {
-                socketRef.current.off(event);
+                socket.off(event);
             }
         }
     }, []);

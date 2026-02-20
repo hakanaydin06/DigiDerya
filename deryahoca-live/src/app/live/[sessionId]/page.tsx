@@ -157,7 +157,7 @@ export default function LiveSessionPage() {
                 sessionId={sessionId}
                 userName={userName}
                 isTeacher={isTeacher}
-                localStream={null /* Camera temporarily disabled */}
+                localStream={localStream}
                 onLeave={handleLeaveRoom}
             />
         );

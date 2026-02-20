@@ -720,8 +720,8 @@ export const Room: React.FC<RoomProps> = ({
                         </motion.div>
                     )}
 
-                    {/* Waiting Students Badge */}
-                    {isTeacher && waitingStudents.length > 0 && (
+                    {/* Waiting Students Badge - only show if there are pending students not yet in room */}
+                    {isTeacher && waitingStudents.filter(ws => !participants.some(p => p.id === ws.id)).length > 0 && (
                         <motion.div
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
@@ -729,7 +729,7 @@ export const Room: React.FC<RoomProps> = ({
                         >
                             <span className="text-brand-primary">⏳</span>
                             <span className="text-xs text-brand-primary font-medium">
-                                {waitingStudents.length} bekliyor
+                                {waitingStudents.filter(ws => !participants.some(p => p.id === ws.id)).length} bekliyor
                             </span>
                         </motion.div>
                     )}
@@ -738,7 +738,7 @@ export const Room: React.FC<RoomProps> = ({
                     <div className="flex items-center gap-2 px-3 py-1.5 bg-brand-panel/50 rounded-full border border-white/5">
                         <span className="text-brand-accent">👥</span>
                         <span className="text-xs text-text-muted">
-                            {participants.length + 1} katılımcı
+                            {participants.length} katılımcı
                         </span>
                     </div>
                 </div>

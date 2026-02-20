@@ -238,22 +238,76 @@ export default function TeacherDashboardPage() {
                     )}
                 </div>
 
-                {/* PDF Management Section */}
+                {/* Teacher Profile Section */}
                 <div className="mt-12">
-                    <h2 className="text-lg font-semibold text-white mb-4">PDF Yönetimi</h2>
-                    <div className="bg-dark-300/50 rounded-2xl p-8 border border-white/5">
-                        <div className="text-center">
-                            <div className="text-5xl mb-4">📄</div>
-                            <h3 className="text-lg font-semibold text-white mb-2">
-                                Ders Materyalleri
+                    <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+                        <span className="text-2xl">👩‍🏫</span> Derya Hoca Profili
+                    </h2>
+
+                    <div className="grid md:grid-cols-2 gap-6">
+                        {/* About Section */}
+                        <motion.div
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="bg-dark-300/50 rounded-2xl p-8 border border-white/5 hover:border-brand-primary/30 transition-all flex flex-col h-full"
+                        >
+                            <h3 className="text-lg font-semibold text-white mb-4 border-b border-white/10 pb-3 flex items-center gap-2">
+                                📝 Açıklama
                             </h3>
-                            <p className="text-gray-400 text-sm mb-4">
-                                PDF dosyalarınızı <code className="bg-dark-400 px-2 py-1 rounded">uploads/pdfs</code> klasörüne yükleyin
-                            </p>
-                            <p className="text-gray-500 text-xs">
-                                Dersler sırasında bu PDF&apos;leri seçip öğrencilerinizle paylaşabilirsiniz
-                            </p>
-                        </div>
+                            <div className="text-gray-300 text-sm leading-relaxed space-y-4 flex-1">
+                                <p>
+                                    <strong>Derya Hoca Kanalıma Hoş Geldiniz!</strong>
+                                </p>
+                                <p>
+                                    10 yılı aşkın tecrübemle, ortaokul 5, 6, 7 ve 8. sınıf öğrencileri için Fen Bilgisi ve Matematik derslerini daha anlaşılır ve eğlenceli hale getiriyorum. İleri teknolojileri derslerimde aktif bir şekilde kullanıyor, lightboard teknolojisiyle öğrencilere etkili ve yenilikçi bir öğrenme deneyimi sunuyorum.
+                                </p>
+                                <p>
+                                    Kanalımda bilim ve matematiğin temel kavramlarını kolayca anlayabileceğiniz içerikler bulabilir, derslerde kullanılan bu öncü teknolojileri yakından tanıyabilirsiniz. Hem online hem de yüz yüze özel derslerle, öğrencilerin ihtiyaçlarına özel çözümler üretiyorum.
+                                </p>
+                                <p>
+                                    Amacım, öğrencilerimin sadece sınavlara değil, <strong>hayat boyu kullanabilecekleri bilgi ve becerilere</strong> sahip olmalarını sağlamak. Dersleri anlatırken eğlenceli olmanın önemini bilerek, her öğrencinin derslerde keyif almasını ve motivasyonunu yüksek tutmasını hedefliyorum.
+                                </p>
+                            </div>
+                        </motion.div>
+
+                        {/* Social Links Section */}
+                        <motion.div
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="bg-dark-300/50 rounded-2xl p-8 border border-white/5 hover:border-brand-accent/30 transition-all flex flex-col h-full"
+                        >
+                            <h3 className="text-lg font-semibold text-white mb-6 border-b border-white/10 pb-3 flex items-center gap-2">
+                                🔗 Bağlantılar
+                            </h3>
+
+                            <div className="grid grid-cols-1 gap-4 flex-1">
+                                {[
+                                    { icon: '📸', name: 'Instagram', label: 'instagram.com/deryahocan', url: 'https://instagram.com/deryahocan', color: 'from-pink-500 to-purple-500' },
+                                    { icon: '🌐', name: 'Web Site', label: 'deryahoca.com', url: 'https://deryahoca.com', color: 'from-blue-500 to-cyan-500' },
+                                    { icon: '🎵', name: 'TikTok', label: 'tiktok.com/@deryahocan', url: 'https://tiktok.com/@deryahocan', color: 'from-gray-700 to-black' },
+                                    { icon: '📌', name: 'Pinterest', label: 'tr.pinterest.com/deryahocan', url: 'https://tr.pinterest.com/deryahocan', color: 'from-red-500 to-red-600' },
+                                    { icon: '📘', name: 'FaceBook', label: 'facebook.com/deryahocan', url: 'https://facebook.com/deryahocan', color: 'from-blue-600 to-blue-700' },
+                                    { icon: '𝕏', name: 'X', label: 'x.com/DeryaHocan', url: 'https://x.com/DeryaHocan', color: 'from-gray-800 to-black' },
+                                    { icon: '🎧', name: 'Spotify', label: 'Derya Hoca Podcast', url: 'https://open.spotify.com/show/10SkPih3GigX3Lqi6ZQkMu?si=c04f899b4f0b4c8a', color: 'from-green-500 to-emerald-600' },
+                                ].map((link, idx) => (
+                                    <a
+                                        key={idx}
+                                        href={link.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="group flex items-center gap-4 p-3 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/10 transition-all"
+                                    >
+                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl bg-gradient-to-br ${link.color} shadow-lg group-hover:scale-110 transition-transform`}>
+                                            {link.icon}
+                                        </div>
+                                        <div>
+                                            <h4 className="text-white font-medium text-sm group-hover:text-brand-primary transition-colors">{link.name}</h4>
+                                            <p className="text-brand-primary/80 group-hover:text-brand-primary text-xs">{link.label}</p>
+                                        </div>
+                                    </a>
+                                ))}
+                            </div>
+                        </motion.div>
                     </div>
                 </div>
             </main>

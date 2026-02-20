@@ -91,6 +91,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     const currentPathRef = useRef<Point[]>([]);
     const activeDrawingPageRef = useRef<number | null>(null);
     const lastScrollEmit = useRef(0);
+    const ignoreScrollUntilRef = useRef(0);
 
     // Remote drawing state
     const remotePathsRef = useRef<Map<string, { points: Point[], color: string, lineWidth: number, isEraser: boolean, pageNum: number }>>(new Map());
@@ -659,6 +660,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         if (!isTeacher) return;
 
         if (localZoom < 100) {
+            ignoreScrollUntilRef.current = Date.now() + 1000; // Ignore scroll updates for 1s during layout reflow
             setLocalZoom(100);
             onZoomChange?.(100);
             onPageChange?.(pageNum);
@@ -853,6 +855,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         if (!pagesContainerRef.current || !isTeacher) return;
 
         const now = Date.now();
+        if (now < ignoreScrollUntilRef.current) return; // Block scroll calculations during a forced thumbnail zoom
         if (now - lastScrollEmit.current < 50) return; // 50ms throttle (20fps)
 
         const container = pagesContainerRef.current;

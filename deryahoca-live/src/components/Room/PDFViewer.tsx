@@ -409,8 +409,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                     ...prev,
                     [pageNum]: [...(prev[pageNum] || []), action]
                 }));
-                // Note: setDrawingHistory will trigger redrawPage, which clears canvas and redraws
-                // This 'flicker' is actually good as it corrects any interpolation errors from real-time drawing
                 return;
             }
 

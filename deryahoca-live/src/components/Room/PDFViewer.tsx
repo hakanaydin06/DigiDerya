@@ -440,20 +440,99 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         };
 
         // Handle sync (initial or refresh)
-        const handleSync = (data: { history: Record<number, DrawingAction[]> }) => {
-            if (data.history) {
+        const handleSync = (data: any) => {
+            // Server now sends an array of persistent actions (or it might come as data.whiteboardStrokes?)
+            // Based on server.js: socket.emit('whiteboard-sync', session.whiteboardStrokes); -> It's an array.
+            // But let's handle potential object wrap just in case.
+
+            let actions: any[] = [];
+            if (Array.isArray(data)) {
+                actions = data;
+            } else if (data && data.history) {
+                // Legacy or if we change server back
                 setDrawingHistory(data.history);
+                return;
+            } else if (data && Array.isArray(data.whiteboardStrokes)) {
+                actions = data.whiteboardStrokes;
+            }
+
+            if (actions.length > 0) {
+                const newHistory: Record<number, DrawingAction[]> = {};
+
+                actions.forEach(action => {
+                    if (action && typeof action.pageNum === 'number') {
+                        if (!newHistory[action.pageNum]) {
+                            newHistory[action.pageNum] = [];
+                        }
+
+                        // Sanitize action for client usage (remove pageNum if not needed in DrawingAction type, but keeping it is fine)
+                        // Client DrawingAction types:
+                        // | { type: 'path'; points: Point[]; color: string; lineWidth: number; isEraser: boolean }
+                        // | { type: 'text'; text: string; x: number; y: number; color: string }
+                        // | { type: 'symbol'; symbol: string; x: number; y: number; color: string }
+
+                        let clientAction: DrawingAction | null = null;
+
+                        if (action.type === 'path') {
+                            clientAction = {
+                                type: 'path',
+                                points: action.points,
+                                color: action.color,
+                                lineWidth: action.lineWidth,
+                                isEraser: action.isEraser
+                            };
+                        } else if (action.type === 'text') {
+                            clientAction = {
+                                type: 'text',
+                                text: action.text,
+                                x: action.x,
+                                y: action.y,
+                                color: action.color
+                            };
+                        } else if (action.type === 'symbol') {
+                            clientAction = {
+                                type: 'symbol',
+                                symbol: action.symbol,
+                                x: action.x,
+                                y: action.y,
+                                color: action.color
+                            };
+                        }
+
+                        if (clientAction) {
+                            newHistory[action.pageNum].push(clientAction);
+                        }
+                    }
+                });
+
+                setDrawingHistory(newHistory);
             }
         };
 
         // Handle clear
-        const handleRemoteClear = () => {
-            setDrawingHistory({});
-            remotePathsRef.current.clear(); // Clear remote paths too
-            annotationCanvasRefs.current.forEach((canvas) => {
-                const ctx = canvas.getContext('2d');
-                if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-            });
+        const handleRemoteClear = (data: { pageIndex?: number }) => {
+            if (data && typeof data.pageIndex === 'number') {
+                // Clear specific page
+                setDrawingHistory(prev => {
+                    const next = { ...prev };
+                    delete next[data.pageIndex as number];
+                    return next;
+                });
+
+                const canvas = annotationCanvasRefs.current.get(data.pageIndex);
+                if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            } else {
+                // Clear all
+                setDrawingHistory({});
+                remotePathsRef.current.clear();
+                annotationCanvasRefs.current.forEach((canvas) => {
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+                });
+            }
         };
 
         on('whiteboard-draw', handleRemoteDraw);

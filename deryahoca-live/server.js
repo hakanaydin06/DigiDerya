@@ -505,19 +505,58 @@ app.prepare().then(async () => {
     socket.on('whiteboard-draw', ({ sessionId, event }) => {
       const participant = participants.get(socket.id);
       if (participant && participant.isTeacher) {
-        // Store the stroke in session for late joiners
-        let session = sessions.get(sessionId);
-        if (!session) {
-          session = { whiteboardStrokes: [] };
-          sessions.set(sessionId, session);
-        }
-        if (!session.whiteboardStrokes) {
-          session.whiteboardStrokes = [];
-        }
-        session.whiteboardStrokes.push(event);
-
-        // Broadcast to all other participants in the room
+        // Broadcast to all other participants in the room IMMEDIATELY for realtime feedback
         socket.to(sessionId).emit('whiteboard-draw', event);
+
+        // Store ONLY persistent events for history
+        // We do NOT store 'path-move', 'path-start', 'scroll' as they are ephemeral or reconstructed
+        if (event.type === 'path-end' || event.type === 'text' || event.type === 'symbol') {
+          let session = sessions.get(sessionId);
+          if (!session) {
+            session = { whiteboardStrokes: [] };
+            sessions.set(sessionId, session);
+          }
+          if (!session.whiteboardStrokes) {
+            session.whiteboardStrokes = [];
+          }
+
+          // Normalize the event for storage
+          let storedAction = null;
+
+          if (event.type === 'path-end') {
+            // Convert path-end to a persistent 'path' action
+            storedAction = {
+              type: 'path',
+              points: event.fullPath, // Use the full path provided by client
+              color: event.color,
+              lineWidth: event.lineWidth,
+              isEraser: event.isEraser,
+              pageNum: event.pageNum
+            };
+          } else if (event.type === 'text') {
+            storedAction = {
+              type: 'text',
+              text: event.text,
+              x: event.x,
+              y: event.y,
+              color: event.color,
+              pageNum: event.pageNum
+            };
+          } else if (event.type === 'symbol') {
+            storedAction = {
+              type: 'symbol',
+              symbol: event.symbol,
+              x: event.x,
+              y: event.y,
+              color: event.color,
+              pageNum: event.pageNum
+            };
+          }
+
+          if (storedAction) {
+            session.whiteboardStrokes.push(storedAction);
+          }
+        }
       }
     });
 
@@ -529,7 +568,8 @@ app.prepare().then(async () => {
         const session = sessions.get(sessionId);
         if (session && session.whiteboardStrokes) {
           if (pageIndex !== undefined) {
-            session.whiteboardStrokes = session.whiteboardStrokes.filter(s => s.pageIndex !== undefined && s.pageIndex !== pageIndex);
+            // Filter out strokes for this page
+            session.whiteboardStrokes = session.whiteboardStrokes.filter(s => s.pageNum !== pageIndex);
           } else {
             session.whiteboardStrokes = [];
           }

@@ -70,6 +70,24 @@ app.prepare().then(async () => {
   const httpServer = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url, true);
+      const { pathname } = parsedUrl;
+
+      // Handle PDF uploads static serving
+      if (pathname.startsWith('/uploads/pdfs/')) {
+        const filePath = path.join(__dirname, pathname);
+        try {
+          const stats = await fs.stat(filePath);
+          if (stats.isFile()) {
+            const data = await fs.readFile(filePath);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.end(data);
+            return;
+          }
+        } catch (err) {
+          // File not found or other error, let Next.js handle 404
+        }
+      }
+
       await handle(req, res, parsedUrl);
     } catch (err) {
       console.error('Error occurred handling', req.url, err);

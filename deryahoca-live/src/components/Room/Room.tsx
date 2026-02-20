@@ -7,6 +7,7 @@ import { useWebRTC } from '@/hooks/useWebRTC';
 import { getSocket } from '@/lib/socket/client';
 import { VideoGrid } from './VideoGrid';
 import { PDFViewer } from './PDFViewer';
+import { PDFSelectModal } from './PDFSelectModal';
 import { Controls } from './Controls';
 import { ClassTimer } from './ClassTimer';
 import { Whiteboard } from './Whiteboard';
@@ -594,53 +595,11 @@ export const Room: React.FC<RoomProps> = ({
                 {renderCanvas()}
 
                 {/* PDF Selector Modal (Mobile) */}
-                <AnimatePresence>
-                    {showPdfSelector && isTeacher && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-brand-dark/80 backdrop-blur-md flex items-center justify-center z-[60] p-4"
-                            onClick={() => setShowPdfSelector(false)}
-                        >
-                            <motion.div
-                                initial={{ scale: 0.9, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                exit={{ scale: 0.9, opacity: 0 }}
-                                className="glass-panel rounded-2xl p-6 max-w-md w-full max-h-[80vh] overflow-hidden border-2 border-brand-primary/30"
-                                onClick={e => e.stopPropagation()}
-                            >
-                                <h2 className="text-xl font-bold text-text-main mb-4 heading-display flex items-center gap-2">
-                                    <span>📄</span> PDF Seçin
-                                </h2>
-
-                                {availablePdfs.length === 0 ? (
-                                    <div className="text-center py-8">
-                                        <p className="text-text-muted">Henüz yüklenmiş PDF yok</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                                        {availablePdfs.map((pdf, index) => (
-                                            <button
-                                                key={index}
-                                                onClick={() => handleSelectPdf(pdf)}
-                                                className="w-full p-4 bg-brand-dark hover:bg-brand-primary/10 rounded-xl text-left transition-colors flex items-center gap-3 border border-white/5"
-                                            >
-                                                <span className="text-text-main truncate text-sm">{pdf.name}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                                <button
-                                    onClick={() => setShowPdfSelector(false)}
-                                    className="mt-4 w-full py-3 bg-brand-panel text-text-muted rounded-xl hover:bg-brand-panel/80 transition-colors border border-white/10"
-                                >
-                                    İptal
-                                </button>
-                            </motion.div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                <PDFSelectModal
+                    isOpen={showPdfSelector && isTeacher}
+                    onClose={() => setShowPdfSelector(false)}
+                    onSelect={handleSelectPdf}
+                />
 
                 {/* Confirm Modal */}
                 <ConfirmModal
@@ -932,6 +891,13 @@ export const Room: React.FC<RoomProps> = ({
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Desktop PDF Modal */}
+            <PDFSelectModal
+                isOpen={showPdfSelector && isTeacher}
+                onClose={() => setShowPdfSelector(false)}
+                onSelect={handleSelectPdf}
+            />
 
             {/* Confirm Modal */}
             <ConfirmModal

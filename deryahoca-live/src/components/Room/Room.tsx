@@ -832,66 +832,7 @@ export const Room: React.FC<RoomProps> = ({
 
             </div>
 
-            {/* PDF Selector Modal */}
-            <AnimatePresence>
-                {showPdfSelector && isTeacher && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-brand-dark/80 backdrop-blur-md flex items-center justify-center z-50 p-4"
-                        onClick={() => setShowPdfSelector(false)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            className="glass-panel rounded-2xl p-6 max-w-md w-full max-h-[80vh] overflow-hidden border-2 border-brand-primary/30"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <h2 className="text-xl font-bold text-text-main mb-4 heading-display flex items-center gap-2">
-                                <span>📄</span> PDF Seçin
-                            </h2>
 
-                            {availablePdfs.length === 0 ? (
-                                <div className="text-center py-8">
-                                    <div className="w-16 h-16 bg-brand-primary/20 rounded-full mx-auto mb-4 flex items-center justify-center border border-brand-primary/30">
-                                        <span className="text-3xl">📄</span>
-                                    </div>
-                                    <p className="text-text-muted">Henüz yüklenmiş PDF yok</p>
-                                    <p className="text-sm text-text-muted/70 mt-2">
-                                        <code className="bg-brand-dark px-2 py-1 rounded">/uploads/pdfs</code> klasörüne PDF dosyaları ekleyin
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="space-y-2 max-h-64 overflow-y-auto">
-                                    {availablePdfs.map((pdf, index) => (
-                                        <motion.button
-                                            key={index}
-                                            whileHover={{ scale: 1.02 }}
-                                            whileTap={{ scale: 0.98 }}
-                                            onClick={() => handleSelectPdf(pdf)}
-                                            className="w-full p-4 bg-brand-dark hover:bg-brand-primary/10 rounded-xl text-left transition-colors flex items-center gap-3 border border-white/5 hover:border-brand-primary/30"
-                                        >
-                                            <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center border border-red-500/30">
-                                                <span className="text-red-400 font-bold text-xs">PDF</span>
-                                            </div>
-                                            <span className="text-text-main truncate">{pdf.name}</span>
-                                        </motion.button>
-                                    ))}
-                                </div>
-                            )}
-
-                            <button
-                                onClick={() => setShowPdfSelector(false)}
-                                className="mt-4 w-full py-3 bg-brand-panel text-text-muted rounded-xl hover:bg-brand-panel/80 transition-colors border border-white/10"
-                            >
-                                İptal
-                            </button>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
 
             {/* Desktop PDF Modal */}
             <PDFSelectModal

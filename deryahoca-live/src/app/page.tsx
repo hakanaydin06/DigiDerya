@@ -39,7 +39,7 @@ const SOCIAL_LINKS = [
     { Icon: PinterestIcon, name: 'Pinterest', url: 'https://tr.pinterest.com/deryahocan', bg: 'from-red-500 to-red-700' },
     { Icon: FacebookIcon, name: 'Facebook', url: 'https://facebook.com/deryahocan', bg: 'from-blue-600 to-blue-800' },
     { Icon: XIcon, name: 'X', url: 'https://x.com/DeryaHocan', bg: 'from-gray-800 to-black' },
-    { Icon: SpotifyIcon, name: 'Spotify', url: 'https://open.spotify.com/show/10SkPih3GigX3Lqi6ZQkMu', bg: 'from-green-500 to-emerald-700' },
+    { Icon: SpotifyIcon, name: 'Spotify', url: 'https://open.spotify.com/show/10SkPih3GigX3Lqi6ZQKmu?si=c04f899b4f0b4c8a', bg: 'from-green-500 to-emerald-700' },
 ];
 
 export default function HomePage() {

@@ -13,7 +13,7 @@
     "setup": "npm run db:generate && npm run db:migrate && npm run db:seed"
   },
   "dependencies": {
-    "@prisma/client": "^6.3.1",
+    "@prisma/client": "^5.22.0",
     "bcryptjs": "^2.4.3",
     "clsx": "^2.1.0",
     "framer-motion": "^11.18.2",
@@ -21,7 +21,7 @@
     "jsonwebtoken": "^9.0.2",
     "next": "^14.1.0",
     "pdfjs-dist": "^4.0.379",
-    "prisma": "^6.3.1",
+    "prisma": "^5.22.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "simple-peer": "^9.11.1",

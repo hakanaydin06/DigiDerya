@@ -163,13 +163,14 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         if (!pdfDoc || !containerRef.current) return;
 
         const currentRenderId = ++renderIdRef.current;
-        // Don't wipe existing pages immediately — keep the old view while re-rendering
-        // so the user doesn't see a scroll reset to page 1.
+        // Lock scroll handler for the entire duration of this re-render
+        // This MUST happen before any async work so no scroll slips through
+        ignoreScrollUntilRef.current = Date.now() + 3000;
 
         const scale = localZoom / 100;
         const pageNums = Array.from({ length: pdfDoc.numPages }, (_, i) => i + 1);
 
-        // Priority to render current page first
+        // Capture the page we want to stay on BEFORE any DOM changes
         const cPage = currentPageRef.current;
         const currentIndex = pageNums.indexOf(cPage);
         if (currentIndex > -1) {
@@ -184,7 +185,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
             if (currentRenderId !== renderIdRef.current) return;
 
             try {
-                // Yield to main thread to prevent UI freezing
                 await new Promise(r => setTimeout(r, 0));
                 if (currentRenderId !== renderIdRef.current) return;
 
@@ -198,37 +198,32 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                 canvas.width = viewport.width;
                 canvas.height = viewport.height;
 
-                await page.render({
-                    canvasContext: context,
-                    viewport,
-                }).promise;
+                await page.render({ canvasContext: context, viewport }).promise;
 
                 if (currentRenderId !== renderIdRef.current) return;
 
                 newPages.push({ pageNum, canvas, dataUrl: canvas.toDataURL() });
-
-                // Progressively update state sorted by pageNum
                 setRenderedPages([...newPages].sort((a, b) => a.pageNum - b.pageNum));
 
-                // As soon as the prioritized current page is rendered, scroll to it
+                // Once the target page is rendered, scroll to it immediately
                 if (!didScrollToCurrentPage && pageNum === cPage) {
                     didScrollToCurrentPage = true;
-                    // Small delay to let the DOM paint the page element
                     setTimeout(() => {
                         if (currentRenderId !== renderIdRef.current) return;
                         const container = pagesContainerRef.current;
                         const el = container?.querySelector(`[data-page="${cPage}"]`) as HTMLElement | null;
                         if (el && container) {
-                            // Ignore scroll calculations while we programmatically scroll
-                            ignoreScrollUntilRef.current = Date.now() + 800;
+                            ignoreScrollUntilRef.current = Date.now() + 1500;
                             el.scrollIntoView({ behavior: 'instant', block: 'center' });
                         }
-                    }, 50);
+                    }, 80);
                 }
             } catch (err) {
                 console.error(`Error rendering page ${pageNum}:`, err);
             }
         }
+        // Release scroll lock after rendering is complete
+        ignoreScrollUntilRef.current = Date.now() + 500;
     }, [pdfDoc, localZoom]);
 
     useEffect(() => {
@@ -242,6 +237,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
             e.preventDefault();
             const delta = e.deltaY > 0 ? -10 : 10;
             const newZoom = Math.max(30, Math.min(300, localZoom + delta));
+            // Lock scroll handler so the re-render doesn't reset current page
+            ignoreScrollUntilRef.current = Date.now() + 3000;
             setLocalZoom(newZoom);
             onZoomChange?.(newZoom);
         }
@@ -277,6 +274,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     const handleZoomButton = (delta: number) => {
         if (!isTeacher) return;
         const newZoom = Math.max(30, Math.min(300, localZoom + delta));
+        // Lock scroll handler so the re-render doesn't reset current page
+        ignoreScrollUntilRef.current = Date.now() + 3000;
         setLocalZoom(newZoom);
         onZoomChange?.(newZoom);
     };
@@ -603,6 +602,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
 
         return () => {
             off('whiteboard-draw', handleRemoteDraw);
+            off('whiteboard-sync', handleSync);
+            off('whiteboard-clear', handleRemoteClear);
         };
     }, [on, off]);
 

@@ -23,6 +23,12 @@ export const useWebRTC = (options: UseWebRTCOptions) => {
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
     const peersRef = useRef<Map<string, PeerConnection>>(new Map());
 
+    // Always-current ref for localStream — the key fix for camera sending
+    const localStreamRef = useRef<MediaStream | null>(localStream);
+    useEffect(() => {
+        localStreamRef.current = localStream;
+    }, [localStream]);
+
     const removePeer = useCallback((targetId: string) => {
         const peerConnection = peersRef.current.get(targetId);
         if (peerConnection) {
@@ -42,7 +48,7 @@ export const useWebRTC = (options: UseWebRTCOptions) => {
         initiator: boolean,
         stream: MediaStream | null
     ): SimplePeerInstance => {
-        console.log(`Creating peer for ${targetId}, initiator: ${initiator}`);
+        console.log(`Creating peer for ${targetId}, initiator: ${initiator}, hasStream: ${!!stream}`);
 
         const peer = new Peer({
             initiator,
@@ -99,7 +105,9 @@ export const useWebRTC = (options: UseWebRTCOptions) => {
             return;
         }
 
-        const peer = createPeer(targetId, initiator, localStream);
+        // Use localStreamRef so we always have the latest stream value
+        const stream = localStreamRef.current;
+        const peer = createPeer(targetId, initiator, stream);
         const peerConnection: PeerConnection = {
             peerId: targetId,
             peer,
@@ -108,30 +116,44 @@ export const useWebRTC = (options: UseWebRTCOptions) => {
 
         peersRef.current.set(targetId, peerConnection);
         setPeers(new Map(peersRef.current));
-    }, [localStream, createPeer]);
+    }, [createPeer]);
 
-    // Handle dynamic localStream updates (e.g. camera enabled after joining)
+    // When localStream arrives or changes, recreate all existing peers
+    // so they get the stream from the start (no track-injection hacks needed)
     useEffect(() => {
         if (!localStream) return;
+        if (peersRef.current.size === 0) return;
 
-        peersRef.current.forEach((peerConnection) => {
-            const peer = peerConnection.peer as any;
-            try {
-                const pc: RTCPeerConnection | undefined = peer._pc;
-                if (!pc) return;
+        console.log('localStream updated, recreating peers to push new stream...');
 
-                const existingSenders = pc.getSenders();
-                localStream.getTracks().forEach(track => {
-                    const alreadySending = existingSenders.some(s => s.track === track);
-                    if (!alreadySending) {
-                        pc.addTrack(track, localStream);
-                    }
-                });
-            } catch (err) {
-                console.error(`Failed to add tracks to peer ${peerConnection.peerId}:`, err);
-            }
+        const existingPeerIds = Array.from(peersRef.current.keys());
+        const existingInitiators = new Map<string, boolean>();
+
+        // Read initiator status before destroying
+        existingPeerIds.forEach(id => {
+            const conn = peersRef.current.get(id);
+            // simple-peer exposes _initiator
+            existingInitiators.set(id, (conn?.peer as any)?._initiator ?? true);
         });
-    }, [localStream]);
+
+        // Destroy all old peers
+        existingPeerIds.forEach(id => removePeer(id));
+
+        // Recreate with the new stream after a brief moment for socket to stabilize
+        setTimeout(() => {
+            existingPeerIds.forEach(id => {
+                const initiator = existingInitiators.get(id) ?? true;
+                const peer = createPeer(id, initiator, localStream);
+                const peerConnection: PeerConnection = {
+                    peerId: id,
+                    peer,
+                    stream: null,
+                };
+                peersRef.current.set(id, peerConnection);
+            });
+            setPeers(new Map(peersRef.current));
+        }, 200);
+    }, [localStream]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleSignal = useCallback((fromId: string, signalData: RTCSessionDescriptionInit | RTCIceCandidateInit) => {
         const peerConnection = peersRef.current.get(fromId);

@@ -110,6 +110,24 @@ export const useWebRTC = (options: UseWebRTCOptions) => {
         setPeers(new Map(peersRef.current));
     }, [localStream, createPeer]);
 
+    // Handle dynamic localStream updates (e.g. camera enabled after joining)
+    useEffect(() => {
+        if (!localStream) return;
+
+        peersRef.current.forEach((peerConnection) => {
+            const peer = peerConnection.peer;
+            try {
+                // simple-peer allows adding new streams after connection, which triggers renegotiation
+                // We check if the stream is already added to avoid duplicates
+                if (peer && !peer.streams.includes(localStream)) {
+                    peer.addStream(localStream);
+                }
+            } catch (err) {
+                console.error(`Failed to add stream to peer ${peerConnection.peerId}:`, err);
+            }
+        });
+    }, [localStream]);
+
     const handleSignal = useCallback((fromId: string, signalData: RTCSessionDescriptionInit | RTCIceCandidateInit) => {
         const peerConnection = peersRef.current.get(fromId);
         if (peerConnection) {

@@ -118,6 +118,7 @@ export const RoomCanvas: React.FC<RoomCanvasProps> = ({
                     lineWidth={lineWidth}
                     isEraser={isEraser}
                     textMode={textMode}
+                    setTextMode={setTextMode}
                     selectedSymbol={selectedSymbol}
                     onSymbolPlaced={() => setSelectedSymbol(null)}
                     // Socket props

@@ -31,6 +31,7 @@ interface PDFViewerProps {
     emit?: (event: any, data: any) => void;
     on?: (event: any, callback: (data: any) => void) => void;
     off?: (event: any, handler?: any) => void;
+    setTextMode?: (val: boolean) => void;
 }
 
 interface Point {
@@ -69,6 +70,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     emit,
     on,
     off,
+    setTextMode,
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const pagesContainerRef = useRef<HTMLDivElement>(null);
@@ -643,6 +645,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         setTextInputVisible(false);
         setTextValue('');
         setActiveTextPage(null);
+        setTextMode?.(false);
     };
 
     const getEventPoint = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {

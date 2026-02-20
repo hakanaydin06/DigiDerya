@@ -163,7 +163,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         if (!pdfDoc || !containerRef.current) return;
 
         const currentRenderId = ++renderIdRef.current;
-        setRenderedPages([]);
+        // Don't wipe existing pages immediately — keep the old view while re-rendering
+        // so the user doesn't see a scroll reset to page 1.
 
         const scale = localZoom / 100;
         const pageNums = Array.from({ length: pdfDoc.numPages }, (_, i) => i + 1);
@@ -177,6 +178,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         }
 
         const newPages: PageCanvas[] = [];
+        let didScrollToCurrentPage = false;
 
         for (const pageNum of pageNums) {
             if (currentRenderId !== renderIdRef.current) return;
@@ -207,6 +209,22 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
 
                 // Progressively update state sorted by pageNum
                 setRenderedPages([...newPages].sort((a, b) => a.pageNum - b.pageNum));
+
+                // As soon as the prioritized current page is rendered, scroll to it
+                if (!didScrollToCurrentPage && pageNum === cPage) {
+                    didScrollToCurrentPage = true;
+                    // Small delay to let the DOM paint the page element
+                    setTimeout(() => {
+                        if (currentRenderId !== renderIdRef.current) return;
+                        const container = pagesContainerRef.current;
+                        const el = container?.querySelector(`[data-page="${cPage}"]`) as HTMLElement | null;
+                        if (el && container) {
+                            // Ignore scroll calculations while we programmatically scroll
+                            ignoreScrollUntilRef.current = Date.now() + 800;
+                            el.scrollIntoView({ behavior: 'instant', block: 'center' });
+                        }
+                    }, 50);
+                }
             } catch (err) {
                 console.error(`Error rendering page ${pageNum}:`, err);
             }
@@ -237,11 +255,14 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         return () => container.removeEventListener('wheel', handleWheel);
     }, [handleWheel]);
 
-    // Scroll to current page
+    // Scroll to current page when page changes externally (e.g. from teacher sync)
     useEffect(() => {
         if (!pagesContainerRef.current) return;
+        // Only scroll on external currentPage prop changes, not zoom-triggered ones
+        if (Date.now() < ignoreScrollUntilRef.current) return;
         const pageElement = pagesContainerRef.current.querySelector(`[data-page="${currentPage}"]`);
         if (pageElement) {
+            ignoreScrollUntilRef.current = Date.now() + 600;
             pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     }, [currentPage]);

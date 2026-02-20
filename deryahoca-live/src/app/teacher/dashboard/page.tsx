@@ -181,8 +181,8 @@ export default function TeacherDashboardPage() {
                                         layout
                                         className="bg-dark-300/50 rounded-2xl p-6 border border-white/5 hover:border-primary-500/30 transition-colors"
                                     >
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex-1">
+                                        <div className="flex items-start gap-4">
+                                            <div className="flex-1 flex flex-col gap-1">
                                                 <div className="flex items-center gap-3 mb-2">
                                                     <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
                                                     <span className="text-white font-semibold">Aktif Ders</span>
@@ -190,42 +190,38 @@ export default function TeacherDashboardPage() {
                                                 <p className="text-gray-400 text-sm mb-3">
                                                     Oluşturulma: {new Date(session.createdAt).toLocaleString('tr-TR')}
                                                 </p>
-                                                <div className="flex flex-col gap-1 flex-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <input
-                                                            type="text"
-                                                            value={session.sessionUrl}
-                                                            readOnly
-                                                            className="flex-1 p-2 bg-dark-400 text-gray-300 text-sm rounded-lg border border-white/10"
-                                                        />
-                                                        <button
-                                                            onClick={() => handleCopyLink(session)}
-                                                            className={`px-4 py-2 rounded-lg transition-colors ${copiedSessionId === session.id
-                                                                ? 'bg-green-500 text-white'
-                                                                : 'bg-primary-500/20 text-primary-300 hover:bg-primary-500/30'
-                                                                }`}
-                                                        >
-                                                            {copiedSessionId === session.id ? '✓ Kopyalandı' : 'Kopyala'}
-                                                        </button>
-                                                    </div>
-                                                    <p className="text-[10px] text-gray-500 pl-1">
-                                                        ℹ️ Test için linki farklı tarayıcıda veya <strong>Gizli Sekme</strong>'de açın.
-                                                    </p>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={session.sessionUrl}
+                                                        readOnly
+                                                        className="flex-1 p-2 bg-dark-400 text-gray-300 text-sm rounded-lg border border-white/10"
+                                                    />
+                                                    <button
+                                                        onClick={() => handleCopyLink(session)}
+                                                        className={`px-4 py-2 rounded-lg transition-colors whitespace-nowrap ${copiedSessionId === session.id
+                                                            ? 'bg-green-500 text-white'
+                                                            : 'bg-primary-500/20 text-primary-300 hover:bg-primary-500/30'
+                                                            }`}
+                                                    >
+                                                        {copiedSessionId === session.id ? '✓ Kopyalandı' : 'Kopyala'}
+                                                    </button>
                                                 </div>
+                                                <p className="text-[10px] text-gray-500 pl-1">
+                                                    ℹ️ Test için linki farklı tarayıcıda veya <strong>Gizli Sekme</strong>&apos;de açın.
+                                                </p>
                                             </div>
 
-                                            <div className="flex gap-3">
-                                                <button
-                                                    onClick={() => {
-                                                        localStorage.setItem('isTeacher', 'true');
-                                                        localStorage.setItem('teacherName', teacherName);
-                                                        window.open(`/live/${session.id}`, '_blank');
-                                                    }}
-                                                    className="px-6 py-2.5 bg-brand-primary rounded-xl font-medium shadow-lg shadow-brand-primary/20 hover:shadow-brand-primary/40 hover:scale-105 transition-all flex items-center gap-2"
-                                                >
-                                                    🚀 Derse Katıl
-                                                </button>
-                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    localStorage.setItem('isTeacher', 'true');
+                                                    localStorage.setItem('teacherName', teacherName);
+                                                    window.open(`/live/${session.id}`, '_blank');
+                                                }}
+                                                className="px-6 py-2.5 bg-brand-primary rounded-xl font-medium shadow-lg shadow-brand-primary/20 hover:shadow-brand-primary/40 hover:scale-105 transition-all flex items-center gap-2 whitespace-nowrap self-start mt-8"
+                                            >
+                                                🚀 Derse Katıl
+                                            </button>
                                         </div>
                                         <p className="text-xs text-brand-accent/80 mt-3 flex items-center gap-1.5 bg-brand-accent/10 p-2 rounded-lg border border-brand-accent/20">
                                             <span className="text-lg">💡</span>

@@ -115,15 +115,20 @@ export const useWebRTC = (options: UseWebRTCOptions) => {
         if (!localStream) return;
 
         peersRef.current.forEach((peerConnection) => {
-            const peer = peerConnection.peer;
+            const peer = peerConnection.peer as any;
             try {
-                // simple-peer allows adding new streams after connection, which triggers renegotiation
-                // We check if the stream is already added to avoid duplicates
-                if (peer && !peer.streams.includes(localStream)) {
-                    peer.addStream(localStream);
-                }
+                const pc: RTCPeerConnection | undefined = peer._pc;
+                if (!pc) return;
+
+                const existingSenders = pc.getSenders();
+                localStream.getTracks().forEach(track => {
+                    const alreadySending = existingSenders.some(s => s.track === track);
+                    if (!alreadySending) {
+                        pc.addTrack(track, localStream);
+                    }
+                });
             } catch (err) {
-                console.error(`Failed to add stream to peer ${peerConnection.peerId}:`, err);
+                console.error(`Failed to add tracks to peer ${peerConnection.peerId}:`, err);
             }
         });
     }, [localStream]);

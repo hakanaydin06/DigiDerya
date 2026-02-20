@@ -333,11 +333,20 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         const handleRemoteDraw = (data: any) => {
             if (!data) return;
 
+            // Debug: Check data structure
+            // console.log('🎨 Remote Draw:', data);
+
+            // Handle potential double wrapping
+            let event = data;
+            if (data.event && !data.type) {
+                event = data.event;
+            }
+
             // Scroll Type (Ephemeral)
-            if (data.type === 'scroll') {
+            if (event.type === 'scroll') {
                 if (isTeacher) return;
                 if (!pagesContainerRef.current) return;
-                const { percentY, percentX } = data;
+                const { percentY, percentX } = event;
                 const { scrollHeight, clientHeight, scrollWidth, clientWidth } = pagesContainerRef.current;
                 const scrollTop = percentY * (scrollHeight - clientHeight);
                 const scrollLeft = percentX * (scrollWidth - clientWidth);
@@ -348,8 +357,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
             // --- Real-time Drawing Handlers ---
 
             // Path Start
-            if (data.type === 'path-start') {
-                const { id, startPoint, color, lineWidth, isEraser, pageNum } = data;
+            if (event.type === 'path-start') {
+                const { id, startPoint, color, lineWidth, isEraser, pageNum } = event;
                 remotePathsRef.current.set(id, {
                     points: [startPoint],
                     color,
@@ -361,8 +370,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
             }
 
             // Path Move (Throttled real-time updates)
-            if (data.type === 'path-move') {
-                const { id, point } = data;
+            if (event.type === 'path-move') {
+                const { id, point } = event;
                 const remotePath = remotePathsRef.current.get(id);
 
                 if (remotePath) {
@@ -390,8 +399,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
             }
 
             // Path End (Finalize)
-            if (data.type === 'path-end') {
-                const { id, fullPath, pageNum } = data; // Receive full path for consistency
+            if (event.type === 'path-end') {
+                const { id, fullPath, pageNum } = event;
 
                 // Cleanup temp path
                 remotePathsRef.current.delete(id);
@@ -400,9 +409,9 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                 const action: DrawingAction = {
                     type: 'path',
                     points: fullPath,
-                    color: data.color,
-                    lineWidth: data.lineWidth,
-                    isEraser: data.isEraser
+                    color: event.color,
+                    lineWidth: event.lineWidth,
+                    isEraser: event.isEraser
                 };
 
                 setDrawingHistory(prev => ({
@@ -415,17 +424,17 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
             // --- Legacy/Other Action Handlers ---
 
             // Check if it's one of our new supported types with pageNum
-            if ('pageNum' in data && (data.type === 'path' || data.type === 'text' || data.type === 'symbol')) {
-                const pageNum = data.pageNum;
+            if ('pageNum' in event && (event.type === 'path' || event.type === 'text' || event.type === 'symbol')) {
+                const pageNum = event.pageNum;
                 let action: DrawingAction;
 
-                if (data.type === 'path') {
+                if (event.type === 'path') {
                     // Legacy path handler (full path received at once)
-                    action = { type: 'path', points: data.points, color: data.color, lineWidth: data.lineWidth, isEraser: data.isEraser };
-                } else if (data.type === 'text') {
-                    action = { type: 'text', text: data.text, x: data.x, y: data.y, color: data.color };
-                } else if (data.type === 'symbol') {
-                    action = { type: 'symbol', symbol: data.symbol, x: data.x, y: data.y, color: data.color };
+                    action = { type: 'path', points: event.points, color: event.color, lineWidth: event.lineWidth, isEraser: event.isEraser };
+                } else if (event.type === 'text') {
+                    action = { type: 'text', text: event.text, x: event.x, y: event.y, color: event.color };
+                } else if (event.type === 'symbol') {
+                    action = { type: 'symbol', symbol: event.symbol, x: event.x, y: event.y, color: event.color };
                 } else {
                     return;
                 }

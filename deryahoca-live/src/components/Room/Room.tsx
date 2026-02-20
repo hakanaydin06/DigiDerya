@@ -491,10 +491,11 @@ export const Room: React.FC<RoomProps> = ({
         setLocalParticipant(prev => prev ? { ...prev, isHandRaised: newState } : null);
     };
 
-    const handleSelectPdf = (pdf: { name: string; url: string }) => {
+    const handleSelectPdf = (url: string) => {
+        const fileName = url.split('/').pop() || 'Doküman';
         const newPdfState: PDFState = {
-            pdfUrl: pdf.url,
-            pdfName: pdf.name,
+            pdfUrl: url,
+            pdfName: fileName,
             currentPage: 1,
             totalPages: 0,
             zoom: 100,

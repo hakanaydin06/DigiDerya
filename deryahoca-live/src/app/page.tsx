@@ -53,8 +53,8 @@ export default function HomePage() {
                 </div>
             </header>
 
-            <main className="flex-1 px-4 pb-4">
-                <div className="max-w-5xl mx-auto">
+            <main className="flex-1 px-4 pb-4 flex flex-col">
+                <div className="max-w-5xl mx-auto w-full flex flex-col flex-1">
 
                     {/* Hero — compact */}
                     <motion.div
@@ -83,7 +83,7 @@ export default function HomePage() {
                         </p>
 
                         {/* Social icons row — icon only with tooltip on hover */}
-                        <div className="flex items-center justify-center gap-2 mb-5 flex-wrap">
+                        <div className="flex items-center justify-center gap-2 mb-10 flex-wrap">
                             {SOCIAL_LINKS.map(({ Icon, name, url, bg }, idx) => (
                                 <a
                                     key={idx}
@@ -128,12 +128,12 @@ export default function HomePage() {
                         </div>
                     </motion.div>
 
-                    {/* Teacher Profile — full width bio, no 2-col split */}
+                    {/* Teacher Profile — full width bio, fills remaining space */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.4 }}
-                        className="bg-dark-300/50 rounded-2xl p-6 border border-white/5"
+                        className="flex-1 bg-dark-300/50 rounded-2xl p-6 border border-white/5 flex flex-col justify-center"
                     >
                         <h2 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
                             <span className="text-xl">👩‍🏫</span> Derya Hoca Hakkında

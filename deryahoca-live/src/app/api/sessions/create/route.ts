@@ -43,7 +43,10 @@ export async function POST(request: Request) {
             global.sessions.set(sessionId, session);
         }
 
-        const baseUrl = global.publicUrl || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+        // Determine base URL dynamically from request headers
+        const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+        const protocol = request.headers.get('x-forwarded-proto') || 'http';
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (host ? `${protocol}://${host}` : 'http://localhost:3000');
         const sessionUrl = `${baseUrl}/live/${sessionId}`;
 
         return NextResponse.json({

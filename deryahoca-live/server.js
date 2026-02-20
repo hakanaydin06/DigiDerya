@@ -62,6 +62,9 @@ async function saveChatHistory() {
   }
 }
 
+// Set public URL from env or default
+global.publicUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
 app.prepare().then(async () => {
   await loadChatHistory();
   const httpServer = createServer(async (req, res) => {

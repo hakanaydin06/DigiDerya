@@ -23,6 +23,40 @@ npm run dev
 open http://localhost:3000
 ```
 
+## 🚀 Production Setup
+
+### 1. Environment Setup
+Copy `.env.production.example` to `.env.production` and update the values:
+```bash
+cp .env.production.example .env.production
+nano .env.production
+```
+
+### 2. Build & Start
+```bash
+# Install dependencies
+npm install
+
+# Build the project
+npm run build
+
+# Setup Database
+npm run setup
+
+# Start the server
+npm run start
+```
+
+### 3. Deployment Options
+- **Railway/Render:** Connect your GitHub repo. Set the `Start Command` to `npm run start`. Add environment variables from `.env.production`.
+- **VPS/Docker:** Use the commands above. Ensure port 3000 is open.
+
+### 4. Development
+For local development with auto-tunneling:
+```bash
+npm run dev
+```
+
 ## 🔑 Demo Giriş Bilgileri
 
 - **E-posta**: ogretmen@deryahoca.com

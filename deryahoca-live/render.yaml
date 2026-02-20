@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: deryahoca-live
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    branch: main
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: TEACHER_EMAIL
+        sync: false
+      - key: TEACHER_PASSWORD
+        sync: false
+      - key: TEACHER_NAME
+        value: "Derya Hoca"
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: DATABASE_URL
+        value: "file:./prod.db"
+    disk:
+      name: sqlite-data
+      mountPath: /opt/render/project/src/deryahoca-live/prod.db
+      sizeGB: 1

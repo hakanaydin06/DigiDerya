@@ -4,9 +4,10 @@ const next = require('next');
 const { Server } = require('socket.io');
 const fs = require('fs/promises');
 const path = require('path');
+const localtunnel = process.env.NODE_ENV !== 'production' ? require('localtunnel') : null;
 
 const dev = process.env.NODE_ENV !== 'production';
-const hostname = 'localhost';
+const hostname = process.env.HOSTNAME || '0.0.0.0'; // Bind to all interfaces for production
 const port = process.env.PORT || 3000;
 
 const app = next({ dev, hostname, port });
@@ -76,7 +77,7 @@ app.prepare().then(async () => {
 
   const io = new Server(httpServer, {
     cors: {
-      origin: '*',
+      origin: process.env.NEXT_PUBLIC_APP_URL || "*", // Use env variable or allow all (for dev/testing)
       methods: ['GET', 'POST']
     },
     transports: ['websocket', 'polling']
@@ -609,8 +610,7 @@ app.prepare().then(async () => {
     });
   });
 
-  // Import localtunnel
-  const localtunnel = require('localtunnel');
+  // Import localtunnel handled at the top conditionally
 
   // ... (existing code) ...
 

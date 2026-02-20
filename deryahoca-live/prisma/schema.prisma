@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Teacher {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  passwordHash  String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+}
+
+model Session {
+  id              String          @id
+  accessCode      String          @unique
+  createdAt       DateTime        @default(now())
+  isActive        Boolean         @default(true)
+  maxParticipants Int             @default(11)
+  teacherId       String
+  teacher         Teacher         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  participants    Participant[]
+  waitingList     WaitingStudent[]
+  chatMessages    ChatMessage[]
+}
+
+model Participant {
+  id            String            @id @default(cuid())
+  sessionId     String
+  session       Session           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  socketId      String            @unique
+  name          String
+  role          String            @default("STUDENT")
+  status        String            @default("APPROVED")
+  isMuted       Boolean           @default(false)
+  isCameraOff   Boolean           @default(false)
+  isHandRaised  Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+}
+
+model WaitingStudent {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  name      String
+  requestedAt DateTime @default(now())
+}
+
+model ChatMessage {
+  id         String   @id @default(cuid())
+  sessionId  String
+  session    Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  senderName String
+  senderRole String
+  text       String
+  createdAt  DateTime @default(now())
+}

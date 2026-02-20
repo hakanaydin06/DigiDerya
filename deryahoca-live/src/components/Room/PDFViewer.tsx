@@ -147,15 +147,42 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         };
     }, [pdfUrl]);
 
+    // Progressive rendering refs
+    const renderIdRef = useRef<number>(0);
+    const currentPageRef = useRef(currentPage);
+
+    useEffect(() => {
+        currentPageRef.current = currentPage;
+    }, [currentPage]);
+
     // Render all pages when PDF loads or zoom changes
     const renderAllPages = useCallback(async () => {
         if (!pdfDoc || !containerRef.current) return;
 
-        const pages: PageCanvas[] = [];
-        const scale = localZoom / 100;
+        const currentRenderId = ++renderIdRef.current;
+        setRenderedPages([]);
 
-        for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        const scale = localZoom / 100;
+        const pageNums = Array.from({ length: pdfDoc.numPages }, (_, i) => i + 1);
+
+        // Priority to render current page first
+        const cPage = currentPageRef.current;
+        const currentIndex = pageNums.indexOf(cPage);
+        if (currentIndex > -1) {
+            pageNums.splice(currentIndex, 1);
+            pageNums.unshift(cPage);
+        }
+
+        const newPages: PageCanvas[] = [];
+
+        for (const pageNum of pageNums) {
+            if (currentRenderId !== renderIdRef.current) return;
+
             try {
+                // Yield to main thread to prevent UI freezing
+                await new Promise(r => setTimeout(r, 0));
+                if (currentRenderId !== renderIdRef.current) return;
+
                 const page = await pdfDoc.getPage(pageNum);
                 const viewport = page.getViewport({ scale });
 
@@ -171,13 +198,16 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                     viewport,
                 }).promise;
 
-                pages.push({ pageNum, canvas, dataUrl: canvas.toDataURL() });
+                if (currentRenderId !== renderIdRef.current) return;
+
+                newPages.push({ pageNum, canvas, dataUrl: canvas.toDataURL() });
+
+                // Progressively update state sorted by pageNum
+                setRenderedPages([...newPages].sort((a, b) => a.pageNum - b.pageNum));
             } catch (err) {
                 console.error(`Error rendering page ${pageNum}:`, err);
             }
         }
-
-        setRenderedPages(pages);
     }, [pdfDoc, localZoom]);
 
     useEffect(() => {
@@ -625,6 +655,13 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     const handleAnnotationStart = (e: React.MouseEvent | React.TouchEvent, pageNum: number) => {
         if (!isTeacher) return;
 
+        if (localZoom < 100) {
+            setLocalZoom(100);
+            onZoomChange?.(100);
+            onPageChange?.(pageNum);
+            return;
+        }
+
         // Prevent default touch actions (scrolling) if drawing
         if (drawingEnabled && 'touches' in e) {
             // e.preventDefault(); // Can't prevent default on passive listener? React handles this.
@@ -815,7 +852,32 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         const now = Date.now();
         if (now - lastScrollEmit.current < 50) return; // 50ms throttle (20fps)
 
-        const { scrollTop, scrollLeft, scrollHeight, clientHeight, scrollWidth, clientWidth } = pagesContainerRef.current;
+        const container = pagesContainerRef.current;
+        const { scrollTop, scrollLeft, scrollHeight, clientHeight, scrollWidth, clientWidth } = container;
+
+        // Calculate the central page
+        const centerY = scrollTop + clientHeight / 2;
+        let minDiff = Infinity;
+        let closestPage = currentPageRef.current;
+
+        const pageElements = container.querySelectorAll('[data-page]');
+        pageElements.forEach((el) => {
+            const pageNum = parseInt(el.getAttribute('data-page') || '1', 10);
+            const htmlEl = el as HTMLElement;
+            // Center of element relative to container's scroll content
+            const elCenter = htmlEl.offsetTop + htmlEl.offsetHeight / 2;
+            const diff = Math.abs(elCenter - centerY);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closestPage = pageNum;
+            }
+        });
+
+        if (closestPage !== currentPageRef.current) {
+            currentPageRef.current = closestPage;
+            onPageChange?.(closestPage);
+        }
+
         // Avoid division by zero
         const maxScrollY = scrollHeight - clientHeight;
         const maxScrollX = scrollWidth - clientWidth;
@@ -825,7 +887,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
 
         emit?.('whiteboard-draw', {
             sessionId,
-            event: { type: 'scroll', percentY, percentX, pageNum: currentPage }
+            event: { type: 'scroll', percentY, percentX, pageNum: currentPageRef.current }
         });
         lastScrollEmit.current = now;
     };
@@ -937,7 +999,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                         </p>
                     </div>
                 ) : (
-                    <div className="flex flex-wrap gap-4 justify-center items-start">
+                    <div className={(!isTeacher || localZoom >= 100) ? "flex flex-col items-center gap-6" : "flex flex-wrap gap-4 justify-center items-start"}>
                         {renderedPages.map(({ pageNum, canvas, dataUrl }) => (
                             <motion.div
                                 key={pageNum}

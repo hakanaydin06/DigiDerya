@@ -46,6 +46,7 @@ type DrawingAction =
 interface PageCanvas {
     pageNum: number;
     canvas: HTMLCanvasElement;
+    dataUrl: string;
 }
 
 export const PDFViewer: React.FC<PDFViewerProps> = ({
@@ -170,7 +171,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                     viewport,
                 }).promise;
 
-                pages.push({ pageNum, canvas });
+                pages.push({ pageNum, canvas, dataUrl: canvas.toDataURL() });
             } catch (err) {
                 console.error(`Error rendering page ${pageNum}:`, err);
             }
@@ -786,33 +787,26 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     };
 
 
-    // Clear all annotation canvases when clearTrigger changes
+    // Clear current annotation canvas when clearTrigger changes
     useEffect(() => {
         if (clearTrigger > 0) {
-            // Clear history state
-            setDrawingHistory({});
+            // Clear history state for the specific page
+            setDrawingHistory(prev => {
+                const next = { ...prev };
+                delete next[currentPage];
+                return next;
+            });
 
-            // Clear canvases visually
-            annotationCanvasRefs.current.forEach((canvas) => {
+            // Clear canvas visually
+            const canvas = annotationCanvasRefs.current.get(currentPage);
+            if (canvas) {
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                 }
-            });
+            }
         }
-        if (clearTrigger > 0) {
-            // Clear history state
-            setDrawingHistory({});
-
-            // Clear canvases visually
-            annotationCanvasRefs.current.forEach((canvas) => {
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                }
-            });
-        }
-    }, [clearTrigger]);
+    }, [clearTrigger, currentPage]);
 
     // Scroll Handler (Teacher Only)
     const handleScroll = () => {
@@ -944,7 +938,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                     </div>
                 ) : (
                     <div className="flex flex-wrap gap-4 justify-center items-start">
-                        {renderedPages.map(({ pageNum, canvas }) => (
+                        {renderedPages.map(({ pageNum, canvas, dataUrl }) => (
                             <motion.div
                                 key={pageNum}
                                 data-page={pageNum}
@@ -955,7 +949,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                             >
                                 {/* PDF Page Image */}
                                 <img
-                                    src={canvas.toDataURL()}
+                                    src={dataUrl}
                                     alt={`Sayfa ${pageNum}`}
                                     className="bg-white"
                                     style={{ maxWidth: '100%', height: 'auto' }}

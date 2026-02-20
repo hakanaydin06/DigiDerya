@@ -344,7 +344,7 @@ export const Room: React.FC<RoomProps> = ({
     };
 
     const confirmClearBoard = () => {
-        const pageIndex = pdfState ? pdfState.currentPage - 1 : 0;
+        const pageIndex = pdfState ? pdfState.currentPage : 1;
         emit('whiteboard-clear', { sessionId, pageIndex });
         setClearTrigger(prev => prev + 1); // Trigger local clear
         setIsClearConfirmOpen(false);
